@@ -8,6 +8,11 @@ import {
   Container,
   IconButton,
   Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  DialogContentText,
 } from '@mui/material';
 import {
   AutoAwesome,
@@ -26,9 +31,14 @@ import { useTheme } from '../theme';
 // MinutesGen v1.0 - アプリケーションヘッダー
 // ===========================================
 
-export const AppHeader: React.FC = () => {
+interface AppHeaderProps {
+  onRestart?: () => void;
+}
+
+export const AppHeader: React.FC<AppHeaderProps> = ({ onRestart }) => {
   const { themeMode, toggleTheme, theme } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [restartDialogOpen, setRestartDialogOpen] = useState(false);
 
   const handleSettingsOpen = () => {
     setSettingsOpen(true);
@@ -47,6 +57,21 @@ export const AppHeader: React.FC = () => {
     }
   };
 
+  const handleLogoClick = () => {
+    setRestartDialogOpen(true);
+  };
+
+  const handleRestartConfirm = () => {
+    setRestartDialogOpen(false);
+    if (onRestart) {
+      onRestart();
+    }
+  };
+
+  const handleRestartCancel = () => {
+    setRestartDialogOpen(false);
+  };
+
   return (
     <AppBar
       position="static"
@@ -54,13 +79,13 @@ export const AppHeader: React.FC = () => {
         background: themeMode === 'color' 
           ? 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)'
           : themeMode === 'light'
-          ? 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)'
-          : 'linear-gradient(135deg, #90caf9 0%, #42a5f5 100%)',
+          ? 'linear-gradient(135deg, #f5f5f5 0%, #e8f0fe 100%)'
+          : 'linear-gradient(135deg, #424242 0%, #212121 100%)',
         boxShadow: themeMode === 'color'
           ? '0 4px 20px rgba(76, 175, 80, 0.3)'
           : themeMode === 'light'
-          ? '0 4px 20px rgba(25, 118, 210, 0.3)'
-          : '0 4px 20px rgba(144, 202, 249, 0.4)',
+          ? '0 4px 20px rgba(25, 118, 210, 0.2)'
+          : '0 4px 20px rgba(66, 66, 66, 0.4)',
         position: 'relative',
         overflow: 'hidden',
         '&::before': {
@@ -81,60 +106,29 @@ export const AppHeader: React.FC = () => {
     >
       <Container maxWidth="lg">
         <Toolbar sx={{ py: 2, minHeight: '80px !important' }}>
-          {/* ロゴ・タイトルセクション */}
+          {/* ロゴセクション */}
           <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
             <Box
               sx={{
-                backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                borderRadius: '50%',
-                p: 1.5,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                mr: 2,
                 transition: 'transform 0.3s ease',
+                cursor: 'pointer',
                 '&:hover': {
-                  transform: 'rotate(360deg)',
+                  transform: 'scale(1.05)',
                 },
               }}
+              onClick={handleLogoClick}
             >
-              <AutoAwesome 
-                sx={{ 
-                  fontSize: 32, 
-                  color: 'white',
+              <img
+                src="/mgen_logo.svg"
+                alt="MinutesGen Logo"
+                style={{
+                  height: '60px',
+                  width: 'auto',
                   filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
-                }} 
+                }}
               />
-            </Box>
-            
-            <Box>
-              <Typography
-                variant="h4"
-                component="h1"
-                sx={{
-                  fontWeight: 700,
-                  color: 'white',
-                  letterSpacing: 1,
-                  fontSize: { xs: '1.5rem', md: '2rem' },
-                  textShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                  mb: 0,
-                }}
-              >
-                MinutesGen v1.0
-              </Typography>
-              <Typography
-                variant="caption"
-                sx={{
-                  color: 'rgba(255, 255, 255, 0.9)',
-                  fontSize: '0.7rem',
-                  fontWeight: 400,
-                  letterSpacing: 2,
-                  textTransform: 'uppercase',
-                  textShadow: '0 1px 2px rgba(0,0,0,0.2)',
-                }}
-              >
-                AI-Powered Minutes Generator
-              </Typography>
             </Box>
           </Box>
 
@@ -185,6 +179,31 @@ export const AppHeader: React.FC = () => {
         onClose={handleSettingsClose}
         onSave={handleSettingsSave}
       />
+      
+      {/* リスタート確認ダイアログ */}
+      <Dialog
+        open={restartDialogOpen}
+        onClose={handleRestartCancel}
+        aria-labelledby="restart-dialog-title"
+        aria-describedby="restart-dialog-description"
+      >
+        <DialogTitle id="restart-dialog-title">
+          TOPに戻りますか？
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="restart-dialog-description">
+            議事録データは削除されます。よろしいですか？
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleRestartCancel} color="primary">
+            キャンセル
+          </Button>
+          <Button onClick={handleRestartConfirm} color="primary" variant="contained">
+            TOPに戻る
+          </Button>
+        </DialogActions>
+      </Dialog>
     </AppBar>
   );
 }; 

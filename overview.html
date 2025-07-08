@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MinutesGen v1.0 - 概要と使い方</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans JP', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f1f8e9;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* テーマ切り替え */
+        body.light-theme {
+            background: #fafafa;
+            color: #212121;
+        }
+
+        body.dark-theme {
+            background: #121212;
+            color: #ffffff;
+        }
+
+        /* 戻るボタン */
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 1);
+            transform: scale(1.1);
+            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .back-button .material-icons {
+            font-size: 24px;
+            color: #66bb6a;
+        }
+
+        body.dark-theme .back-button {
+            background: rgba(66, 66, 66, 0.9);
+        }
+
+        body.dark-theme .back-button:hover {
+            background: rgba(66, 66, 66, 1);
+        }
+
+        body.dark-theme .back-button .material-icons {
+            color: #90caf9;
+        }
+
+        /* ヘッダー */
+        .header {
+            background: linear-gradient(135deg, #66bb6a 0%, #4caf50 100%);
+            color: white;
+            padding: 20px 0;
+            box-shadow: 0 4px 20px rgba(76, 175, 80, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            animation: shimmer 3s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        body.light-theme .header {
+            background: linear-gradient(135deg, #f5f5f5 0%, #e8f0fe 100%);
+            color: #333333;
+            box-shadow: 0 4px 20px rgba(25, 118, 210, 0.2);
+        }
+
+        body.dark-theme .header {
+            background: linear-gradient(135deg, #424242 0%, #212121 100%);
+            color: white;
+            box-shadow: 0 4px 20px rgba(66, 66, 66, 0.4);
+        }
+
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            min-height: 80px;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+        }
+
+        .logo {
+            height: 60px;
+            width: auto;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+        }
+
+        .theme-toggle {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .theme-toggle:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        body.light-theme .theme-toggle {
+            color: #333333;
+        }
+
+        body.dark-theme .theme-toggle {
+            color: white;
+        }
+
+        /* メインコンテンツ */
+        .main-content {
+            flex: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .page-title {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .page-title h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #66bb6a;
+            margin-bottom: 10px;
+        }
+
+        body.light-theme .page-title h1 {
+            color: #4caf50;
+        }
+
+        body.dark-theme .page-title h1 {
+            color: #90caf9;
+        }
+
+        .page-title p {
+            font-size: 1.2rem;
+            color: #666;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        body.dark-theme .page-title p {
+                        color: #aaaaaa;
+        }
+
+        /* セキュリティ警告 */
+        .security-notice {
+            background: #e8f5e8;
+            border: 2px solid #4caf50;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 50px;
+            position: relative;
+        }
+
+        body.light-theme .security-notice {
+            background: #f3e5f5;
+            border-color: #9c27b0;
+        }
+
+        body.dark-theme .security-notice {
+            background: #1e3a8a;
+            border-color: #90caf9;
+        }
+
+        .security-notice::before {
+            content: '🔒';
+            position: absolute;
+            top: -15px;
+            left: 30px;
+            background: #4caf50;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        body.light-theme .security-notice::before {
+            background: #9c27b0;
+        }
+
+        body.dark-theme .security-notice::before {
+            background: #90caf9;
+        }
+
+        .security-notice h3 {
+            color: #2e7d32;
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+        }
+
+        body.light-theme .security-notice h3 {
+            color: #7b1fa2;
+        }
+
+        body.dark-theme .security-notice h3 {
+            color: #90caf9;
+        }
+
+        .security-notice ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .security-notice li {
+            margin-bottom: 10px;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .security-notice li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: #4caf50;
+            font-weight: bold;
+        }
+
+        body.light-theme .security-notice li::before {
+            color: #9c27b0;
+        }
+
+        body.dark-theme .security-notice li::before {
+            color: #90caf9;
+        }
+
+        /* 概要セクション */
+        .overview-section {
+            margin-bottom: 50px;
+        }
+
+        .overview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .benefit-card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-left: 4px solid #66bb6a;
+        }
+
+        .benefit-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        body.light-theme .benefit-card {
+            background: white;
+            border-left-color: #4caf50;
+        }
+
+        body.dark-theme .benefit-card {
+            background: #1e1e1e;
+            border-left-color: #90caf9;
+        }
+
+        .benefit-icon {
+            font-size: 3rem;
+            color: #66bb6a;
+            margin-bottom: 20px;
+        }
+
+        body.light-theme .benefit-icon {
+            color: #4caf50;
+        }
+
+        body.dark-theme .benefit-icon {
+            color: #90caf9;
+        }
+
+        .benefit-card h3 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2e7d32;
+        }
+
+        body.light-theme .benefit-card h3 {
+            color: #212121;
+        }
+
+        body.dark-theme .benefit-card h3 {
+            color: #ffffff;
+        }
+
+        .benefit-card p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        body.dark-theme .benefit-card p {
+            color: #aaaaaa;
+        }
+
+        /* 使い方セクション */
+        .usage-section {
+            margin-bottom: 50px;
+        }
+
+        .section-title {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #66bb6a;
+            margin-bottom: 30px;
+            text-align: center;
+            position: relative;
+            padding-bottom: 15px;
+        }
+
+        .section-title::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 3px;
+            background: #66bb6a;
+            border-radius: 2px;
+        }
+
+        body.light-theme .section-title {
+            color: #4caf50;
+        }
+
+        body.light-theme .section-title::after {
+            background: #4caf50;
+        }
+
+        body.dark-theme .section-title {
+            color: #90caf9;
+        }
+
+        body.dark-theme .section-title::after {
+            background: #90caf9;
+        }
+
+        /* カテゴリタイトル */
+        body.light-theme h3[style*="color: #66bb6a"] {
+            color: #4caf50 !important;
+        }
+
+        body.dark-theme h3[style*="color: #66bb6a"] {
+            color: #90caf9 !important;
+        }
+
+        body.dark-theme p[style*="color: #666"] {
+            color: #aaaaaa !important;
+        }
+
+        .usage-step {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+
+        body.dark-theme .usage-step {
+            background: #1e1e1e;
+        }
+
+        .usage-step:nth-child(even) {
+            flex-direction: row-reverse;
+        }
+
+        .usage-step-content {
+            flex: 1;
+        }
+
+        .usage-step-image {
+            flex: 1;
+            text-align: center;
+        }
+
+        .usage-step-image img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+            background: transparent !important;
+            box-shadow: none !important;
+            border: none !important;
+        }
+
+        .usage-step-image img:hover {
+            transform: scale(1.05);
+        }
+
+        /* モーダル用スタイル */
+        .image-modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .image-modal.show {
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            width: 150%;
+            height: auto;
+            max-width: none;
+            max-height: none;
+            border-radius: 0px;
+            box-shadow: none !important;
+            animation: zoomIn 0.3s ease;
+            display: block !important;
+            background: transparent !important;
+            z-index: 10000;
+            position: relative;
+            opacity: 1 !important;
+            border: none !important;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            color: white;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s ease;
+            z-index: 10001;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .modal-close:hover {
+            color: #66bb6a;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes zoomIn {
+            from { transform: scale(0.5); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        /* モーダル内の画像を確実に表示 */
+        .image-modal img {
+            z-index: 10000 !important;
+            position: relative !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            display: block !important;
+            opacity: 1 !important;
+        }
+
+        .step-number {
+            background: #66bb6a;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+        }
+
+        body.light-theme .step-number {
+            background: #4caf50;
+        }
+
+        body.dark-theme .step-number {
+            background: #90caf9;
+        }
+
+        .usage-step h3 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2e7d32;
+        }
+
+        body.light-theme .usage-step h3 {
+            color: #212121;
+        }
+
+        body.dark-theme .usage-step h3 {
+            color: #ffffff;
+        }
+
+        .usage-step p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        body.dark-theme .usage-step p {
+            color: #aaaaaa;
+        }
+
+        /* フッター */
+        .footer {
+            background: linear-gradient(135deg, #66bb6a 0%, #4caf50 100%);
+            color: white;
+            padding: 30px 0;
+            margin-top: auto;
+            border-top: 1px solid rgba(76, 175, 80, 0.2);
+        }
+
+        body.light-theme .footer {
+            background: linear-gradient(135deg, #f5f5f5 0%, #e8f0fe 100%);
+            color: #333333;
+            border-top-color: rgba(51, 51, 51, 0.1);
+        }
+
+        body.dark-theme .footer {
+            background: linear-gradient(135deg, #424242 0%, #212121 100%);
+            color: white;
+            border-top-color: rgba(66, 66, 66, 0.2);
+        }
+
+        .footer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .footer-brand {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .footer-brand h6 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .footer-brand p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            max-width: 400px;
+        }
+
+        .footer-features {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .feature-chip {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        body.light-theme .feature-chip {
+            background: rgba(51, 51, 51, 0.1);
+            color: #333333;
+            border-color: rgba(51, 51, 51, 0.2);
+        }
+
+        body.dark-theme .feature-chip {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        /* レスポンシブ */
+        @media (max-width: 768px) {
+            .usage-step {
+                flex-direction: column !important;
+                text-align: center;
+            }
+
+            .usage-step-image {
+                order: -1;
+            }
+
+            .page-title h1 {
+                font-size: 2rem;
+            }
+
+            .main-content {
+                padding: 20px 15px;
+            }
+
+            .footer-container {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 戻るボタン -->
+    <button class="back-button" onclick="goBack()" title="メイン画面に戻る">
+        <span class="material-icons">arrow_back</span>
+    </button>
+
+    <!-- ヘッダー -->
+    <header class="header">
+        <div class="header-container">
+            <div class="logo-section">
+                <img src="mgen_logo.svg" alt="MinutesGen Logo" class="logo">
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()">
+                <span class="material-icons" id="theme-icon">palette</span>
+                <span id="theme-text">テーマ切り替え</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+                <!-- ページタイトル -->
+        <div class="page-title">
+            <h1>MinutesGen v1.0</h1>
+            <p>AI音声認識による高品質な議事録生成システム</p>
+        </div>
+
+        <!-- セキュリティ警告 -->
+        <div class="security-notice">
+            <h3>セキュリティについて</h3>
+                            <p style="margin-bottom: 20px;"><strong>暫定的に全情報入力可としています</strong></p>
+            <ul>
+                <li style="margin-bottom: 15px;">プロンプト、結果共にAI学習に利用されません。</li>
+                <li>実行履歴情報は残りません。プロンプト設定・辞書機能だけをユーザーローカルに保存します。</li>
+                <li>ローカル内にしかデータが残らないスタンドアローン仕様です。セキュリティ維持のためSharepoint内で利用してください。</li>
+            </ul>
+            <p><strong>上記より、dJ基準で全情報入力可と判断していますが、現在dJ AIガバナンスコミッティに確認中です。</strong></p>
+        </div>
+
+        <!-- 概要セクション -->
+        <section class="overview-section">
+            <h2 class="section-title">主な特徴とメリット</h2>
+            <div class="overview-grid">
+                <div class="benefit-card">
+                    <div class="benefit-icon">🎤</div>
+                    <h3>高精度音声認識</h3>
+                    <p>OpenAI GPT-4 Transcribeを使用した業界最高水準の音声認識により、複数話者の会議でも正確な文字起こしを実現。話者識別機能で誰が何を話したかも明確に記録します。</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">📝</div>
+                    <h3>AI議事録生成</h3>
+                    <p>GPT-4.1またはo3モデルを選択可能。カスタムプロンプトにより、あなたの組織に最適化された議事録を自動生成。重要ポイントの抽出からアクション項目の整理まで自動化します。</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">⚡</div>
+                    <h3>効率的なワークフロー</h3>
+                    <p>音声ファイルをドラッグ&ドロップするだけで、文字起こしから議事録生成まで全自動。従来の手作業と比べて90%以上の時間短縮を実現します。</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">🔒</div>
+                    <h3>完全セキュア</h3>
+                    <p>ローカル実行によりデータが外部に送信されることはありません。AI学習にも利用されず、実行履歴も残らない完全プライベート仕様です。</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">📄</div>
+                    <h3>多様な出力形式</h3>
+                    <p>Markdown、Word、HTML形式での出力に対応。用途に応じて最適なフォーマットを選択できます。美しいレイアウトで即座に共有可能です。</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">🎨</div>
+                    <h3>直感的なUI</h3>
+                    <p>3つのテーマ（カラー、ライト、ダーク）から選択可能。使いやすいインターフェースで、初心者でも迷わず操作できます。</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 使い方セクション -->
+        <section class="usage-section">
+            <h2 class="section-title">使い方ガイド</h2>
+            
+            <!-- 基本操作フロー -->
+            <div style="margin-bottom: 50px;">
+                <h3 style="font-size: 1.5rem; color: #66bb6a; margin-bottom: 20px; text-align: center;">基本操作フロー（1-11）</h3>
+                <p style="text-align: center; color: #666; margin-bottom: 30px;">音声ファイルのアップロードから議事録生成まで、3ステップで完了。</p>
+            </div>
+            
+            <div class="usage-step">
+                <div class="usage-step-content">
+                    <div class="step-number">1</div>
+                    <h3>アプリケーション起動</h3>
+                    <p>MinutesGenを起動すると、クリーンで直感的なメイン画面が表示されます。</p>
+                    <p>4つのステップで議事録生成が完了する簡単なワークフローです。</p>
+                </div>
+                <div class="usage-step-image">
+                    <img src="01立上げ時画面.jpg" alt="アプリケーション起動画面">
+                </div>
+            </div>
+
+            <div class="usage-step">
+                <div class="usage-step-content">
+                    <div class="step-number">2</div>
+                    <h3>音声ファイルのアップロード</h3>
+                    <p>音声・動画ファイルをドラッグ&ドロップまたはファイル選択でアップロードします。</p>
+                    <p>MP3、WAV、MP4など主要な音声・動画形式に対応しています。</p>
+                </div>
+                <div class="usage-step-image">
+                    <img src="02ファイル添付時画面.jpg" alt="ファイルアップロード画面">
+                </div>
+            </div>
+
+            <div class="usage-step">
+                <div class="usage-step-content">
+                    <div class="step-number">3</div>
+                    <h3>音声認識設定</h3>
+                    <p>音声認識の言語設定や品質レベルを選択できます。</p>
+                    <p>日本語、英語、自動検出から選択可能です。</p>
+                </div>
+                <div class="usage-step-image">
+                    <img src="03音声認識設定セレクト.jpg" alt="音声認識設定画面">
+                </div>
+            </div>
+
+            <div class="usage-step">
+                <div class="usage-step-content">
+                    <div class="step-number">4</div>
+                    <h3>出力形式とプロンプト選択</h3>
+                    <p>議事録の出力形式（Markdown、Word、HTML）を選択します。</p>
+                    <p>プリセットプロンプトまたはカスタムプロンプトで議事録の形式をカスタマイズできます。</p>
+                </div>
+                <div class="usage-step-image">
+                    <img src="04出力形式やプロンプト選択.jpg" alt="出力形式選択画面">
+                </div>
+            </div>
+
+            <div class="usage-step">
+                <div class="usage-step-content">
+                    <div class="step-number">5</div>
+                    <h3>AI処理実行</h3>
+                    <p>「AI処理」ボタンをクリックすると、音声認識と議事録生成が開始されます。</p>
+                    <p>処理時間は音声の長さによって異なりますが、進捗状況がリアルタイムで表示されます。</p>
+                </div>
+                <div class="usage-step-image">
+                    <img src="05AI処理ボタンでAIが動きます.jpg" alt="AI処理実行画面">
+                </div>
+            </div>
+
+            <div class="usage-step">
+                <div class="usage-step-content">
+                    <div class="step-number">6</div>
+                    <h3>処理進行状況</h3>
+                    <p>音声認識処理中は進捗バーと処理状況が表示されます。</p>
+                    <p>長時間の音声でも安心してお待ちいただけます。</p>
+                </div>
+                <div class="usage-step-image">
+                    <img src="06必死に文字起こししてます（時間がかかります）.jpg" alt="処理進行画面">
+                </div>
+            </div>
+
+            <div class="usage-step">
+                <div class="usage-step-content">
+                    <div class="step-number">7</div>
+                    <h3>文字起こし結果表示</h3>
+                    <p>音声認識が完了すると、文字起こしの生原稿が表示されます。</p>
+                    <p>話者識別、信頼度、タイムスタンプ付きで詳細な文字起こしを確認できます。</p>
+                </div>
+                <div class="usage-step-image">
+                    <img src="07文字起こし生原稿表示.jpg" alt="文字起こし結果画面">
+                </div>
+            </div>
+
+            <div class="usage-step">
+                <div class="usage-step-content">
+                    <div class="step-number">8</div>
+                    <h3>生成議事録表示</h3>
+                    <p>AIが生成した構造化された議事録が表示されます。</p>
+                    <p>要約、重要ポイント、アクション項目が自動的に整理されます。</p>
+                </div>
+                <div class="usage-step-image">
+                    <img src="08生成議事録表示.jpg" alt="生成議事録画面">
+                </div>
+            </div>
+
+            <div class="usage-step">
+                <div class="usage-step-content">
+                    <div class="step-number">9</div>
+                    <h3>議事録出力</h3>
+                    <p>選択した形式で議事録をダウンロードできます。</p>
+                    <p>プレビュー機能で内容を確認してからダウンロード可能です。</p>
+                </div>
+                <div class="usage-step-image">
+                    <img src="09議事録出力画面.jpg" alt="議事録出力画面">
+                </div>
+            </div>
+
+            <div class="usage-step">
+                <div class="usage-step-content">
+                    <div class="step-number">10</div>
+                    <h3>音声合成機能</h3>
+                    <p>生成された議事録を音声で聞くことができます。</p>
+                    <p>ポッドキャスト形式での出力も可能です（実装途中）。</p>
+                </div>
+                <div class="usage-step-image">
+                    <img src="10音声で聞けます（実装途中）.jpg" alt="音声合成機能画面">
+                </div>
+            </div>
+
+            <div class="usage-step">
+                <div class="usage-step-content">
+                    <div class="step-number">11</div>
+                    <h3>ビジュアル化機能</h3>
+                    <p>議事録データのビジュアル化機能を開発中です。</p>
+                    <p>チャート、グラフ、統計情報などで会議内容を視覚的に分析できます。</p>
+                </div>
+                <div class="usage-step-image">
+                    <img src="11ビジュアル化表示も（開発予定）.jpg" alt="ビジュアル化機能画面">
+                </div>
+            </div>
+
+            <!-- 詳細設定 -->
+            <div style="margin: 50px 0;">
+                <h3 style="font-size: 1.5rem; color: #66bb6a; margin-bottom: 20px; text-align: center;">詳細設定</h3>
+                <p style="text-align: center; color: #666; margin-bottom: 30px;">初回セットアップとカスタマイズ設定で、より高度な議事録生成を実現します。</p>
+            </div>
+
+            <div class="usage-step">
+                <div class="usage-step-content">
+                    <h3>API KEY設定</h3>
+                    <p>初回のみOpenAI API KEYの設定が必要です。</p>
+                    <p>設定後はテスト実行で接続を確認し、ローカルに安全に保存されます。</p>
+                </div>
+                <div class="usage-step-image">
+                    <img src="20初回のみAPI KEYの設定とテスト、保存が必要.jpg" alt="API KEY設定画面">
+                </div>
+            </div>
+
+            <div class="usage-step">
+                <div class="usage-step-content">
+                    <h3>詳細プロンプト設定</h3>
+                    <p>議事録生成用のプロンプトを詳細に設定できます。</p>
+                    <p>組織の要件に合わせてカスタマイズ可能です。</p>
+                </div>
+                <div class="usage-step-image">
+                    <img src="21議事録プロンプトは詳細指示できます.jpg" alt="プロンプト設定画面">
+                </div>
+            </div>
+
+            <!-- テーマ設定 -->
+            <div style="margin: 50px 0;">
+                <h3 style="font-size: 1.5rem; color: #66bb6a; margin-bottom: 20px; text-align: center;">テーマ設定</h3>
+                <p style="text-align: center; color: #666; margin-bottom: 30px;">お好みの作業環境に合わせて、3つのテーマから選択できます。</p>
+            </div>
+
+            <div class="usage-step">
+                <div class="usage-step-content">
+                    <h3>ライトテーマ</h3>
+                    <p>明るく清潔感のあるライトテーマで作業できます。</p>
+                    <p>長時間の作業でも目に優しい配色です。</p>
+                </div>
+                <div class="usage-step-image">
+                    <img src="30ライトテーマ.jpg" alt="ライトテーマ画面">
+                </div>
+            </div>
+
+            <div class="usage-step">
+                <div class="usage-step-content">
+                    <h3>ダークテーマ</h3>
+                    <p>目に優しいダークテーマで夜間作業も快適です。</p>
+                    <p>集中しやすい落ち着いた配色で生産性向上をサポートします。</p>
+                </div>
+                <div class="usage-step-image">
+                    <img src="31ダークテーマ.jpg" alt="ダークテーマ画面">
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 画像拡大モーダル -->
+    <div id="imageModal" class="image-modal">
+        <span class="modal-close" onclick="closeModal()">&times;</span>
+        <img class="modal-content" id="modalImage">
+    </div>
+
+    <!-- フッター -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-brand">
+                <div>
+                    <h6>MinutesGen</h6>
+                    <p>AI音声認識による高品質な議事録生成で、会議の生産性を革新します。</p>
+                </div>
+            </div>
+            <div class="footer-features">
+                <div class="feature-chip">
+                    <span class="material-icons" style="font-size: 16px;">security</span>
+                    セキュア
+                </div>
+                <div class="feature-chip">
+                    <span class="material-icons" style="font-size: 16px;">speed</span>
+                    高速処理
+                </div>
+                <div class="feature-chip">
+                    <span class="material-icons" style="font-size: 16px;">high_quality</span>
+                    高品質
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // テーマ管理
+        let currentTheme = localStorage.getItem('minutesgen-theme') || 'color';
+        
+        function applyTheme(theme) {
+            document.body.className = '';
+            if (theme === 'light') {
+                document.body.classList.add('light-theme');
+            } else if (theme === 'dark') {
+                document.body.classList.add('dark-theme');
+            }
+            
+            const themeIcon = document.getElementById('theme-icon');
+            const themeText = document.getElementById('theme-text');
+            
+            switch(theme) {
+                case 'color':
+                    themeIcon.textContent = 'palette';
+                    themeText.textContent = 'カラー';
+                    break;
+                case 'light':
+                    themeIcon.textContent = 'light_mode';
+                    themeText.textContent = 'ライト';
+                    break;
+                case 'dark':
+                    themeIcon.textContent = 'dark_mode';
+                    themeText.textContent = 'ダーク';
+                    break;
+            }
+        }
+        
+        function toggleTheme() {
+            const themes = ['color', 'light', 'dark'];
+            const currentIndex = themes.indexOf(currentTheme);
+            const nextIndex = (currentIndex + 1) % themes.length;
+            currentTheme = themes[nextIndex];
+            
+            localStorage.setItem('minutesgen-theme', currentTheme);
+            applyTheme(currentTheme);
+        }
+        
+        function goBack() {
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                // メインアプリケーションに戻る（実際のパスに応じて調整）
+                window.location.href = 'index.html';
+            }
+        }
+        
+        // 初期テーマ適用
+        applyTheme(currentTheme);
+        
+        // スムーズスクロール
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+        
+        // 画像の読み込み処理
+        function initializeImages() {
+            const images = document.querySelectorAll('.usage-step-image img');
+            
+            images.forEach(img => {
+                // 画像のクリックイベントを追加
+                img.addEventListener('click', function() {
+                    openModal(this.src, this.alt);
+                });
+                
+                // 画像の読み込みエラー処理
+                img.addEventListener('error', function() {
+                    console.error('画像の読み込みに失敗しました:', this.src);
+                    this.style.display = 'none';
+                    // 代替画像を表示
+                    this.parentElement.innerHTML = '<div style="background: #f0f0f0; padding: 20px; text-align: center; border-radius: 8px;">画像を読み込めませんでした</div>';
+                });
+                
+                // 画像の読み込み完了処理
+                img.addEventListener('load', function() {
+                    this.style.opacity = '1';
+                    console.log('画像が読み込まれました:', this.src);
+                });
+                
+                // 初期スタイル設定
+                img.style.opacity = '1';
+                img.style.transition = 'opacity 0.3s ease';
+                img.style.display = 'block';
+            });
+        }
+        
+        // モーダル機能
+        function openModal(imageSrc, imageAlt) {
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modalImage');
+            
+            console.log('Opening modal with image:', imageSrc);
+            
+            // 画像を設定
+            modalImg.src = imageSrc;
+            modalImg.alt = imageAlt;
+            modalImg.style.display = 'block';
+            modalImg.style.opacity = '1';
+            modalImg.style.background = 'transparent';
+            modalImg.style.zIndex = '10000';
+            modalImg.style.position = 'relative';
+            modalImg.style.width = '150%';
+            modalImg.style.height = 'auto';
+            modalImg.style.maxWidth = 'none';
+            modalImg.style.maxHeight = 'none';
+            modalImg.style.boxShadow = 'none';
+            modalImg.style.border = 'none';
+            modalImg.style.borderRadius = '0px';
+            
+            // モーダルを表示
+            modal.style.display = 'flex';
+            modal.style.alignItems = 'center';
+            modal.style.justifyContent = 'center';
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden'; // スクロールを無効化
+            
+            // ESCキーでモーダルを閉じる
+            const escapeHandler = function(e) {
+                if (e.key === 'Escape') {
+                    closeModal();
+                    document.removeEventListener('keydown', escapeHandler);
+                }
+            };
+            document.addEventListener('keydown', escapeHandler);
+            
+            // モーダル背景をクリックで閉じる
+            const clickHandler = function(e) {
+                if (e.target === modal) {
+                    closeModal();
+                    modal.removeEventListener('click', clickHandler);
+                }
+            };
+            modal.addEventListener('click', clickHandler);
+        }
+        
+        function closeModal() {
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modalImage');
+            
+            modal.classList.remove('show');
+            modal.style.display = 'none';
+            document.body.style.overflow = ''; // スクロールを復活
+            
+            // 画像をリセット
+            setTimeout(() => {
+                modalImg.src = '';
+                modalImg.alt = '';
+            }, 300);
+        }
+        
+        // 画像の遅延読み込み
+        const imageObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    // 実際の画像パスを設定
+                    if (!img.src.includes('http')) {
+                        const originalSrc = img.getAttribute('src');
+                        img.src = originalSrc;
+                    }
+                    observer.unobserve(img);
+                }
+            });
+        });
+        
+        // 初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeImages();
+            
+            const images = document.querySelectorAll('.usage-step-image img');
+            images.forEach(img => {
+                imageObserver.observe(img);
+            });
+        });
+    </script>
+</body>
+</html> 

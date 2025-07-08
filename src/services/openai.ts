@@ -96,13 +96,13 @@ export class OpenAIService {
       onProgress?.({
         stage: 'transcribing',
         percentage: 10,
-        currentTask: '音声ファイルを文字起こし中...',
+        currentTask: 'AIが音声を文字に変換中...',
         estimatedTimeRemaining: 0,
         logs: [{
           id: Date.now().toString(),
           timestamp: new Date(),
           level: 'info',
-          message: '音声ファイルをOpenAI Transcribe APIに送信中...',
+          message: '音声ファイルをAI文字起こしサービスに送信中...',
         }],
         startedAt: new Date(),
       });
@@ -134,13 +134,13 @@ export class OpenAIService {
       onProgress?.({
         stage: 'transcribing',
         percentage: 80,
-        currentTask: '文字起こし完了',
+        currentTask: 'AI文字起こし完了',
         estimatedTimeRemaining: 0,
         logs: [{
           id: Date.now().toString() + '_1',
           timestamp: new Date(),
           level: 'success',
-          message: '文字起こしが完了しました',
+          message: 'AIによる文字起こしが完了しました',
         }],
         startedAt: new Date(),
       });
@@ -227,13 +227,13 @@ export class OpenAIService {
         onProgress?.({
           stage: 'transcribing',
           percentage: 70 + Math.round((i / segments.length) * 25),
-          currentTask: `セグメント ${i + 1}/${segments.length} を文字起こし中...`,
+          currentTask: `音声セグメント ${i + 1}/${segments.length} をAIが文字に変換中...`,
           estimatedTimeRemaining: 0,
           logs: [{
             id: Date.now().toString() + '_seg_' + i,
             timestamp: new Date(),
             level: 'info',
-            message: `セグメント ${i + 1}/${segments.length} (${segment.startTime.toFixed(1)}s - ${segment.endTime.toFixed(1)}s) を文字起こし中`,
+            message: `音声セグメント ${i + 1}/${segments.length} (${segment.startTime.toFixed(1)}s - ${segment.endTime.toFixed(1)}s) をAIが処理中`,
           }],
           startedAt: new Date(),
         });
@@ -260,13 +260,13 @@ export class OpenAIService {
       onProgress?.({
         stage: 'transcribing',
         percentage: 95,
-        currentTask: 'セグメントの文字起こしが完了',
+        currentTask: 'AI文字起こし完了',
         estimatedTimeRemaining: 0,
         logs: [{
           id: Date.now().toString() + '_segment_done',
           timestamp: new Date(),
           level: 'success',
-          message: '全セグメントの文字起こしが完了しました',
+          message: '全ての音声セグメントのAI文字起こしが完了しました',
         }],
         startedAt: new Date(),
       });
@@ -292,13 +292,13 @@ export class OpenAIService {
       onProgress?.({
         stage: 'generating',
         percentage: 20,
-        currentTask: '議事録を生成中...',
+        currentTask: 'AIが議事録を生成中...',
         estimatedTimeRemaining: 0,
         logs: [{
           id: Date.now().toString() + '_2',
           timestamp: new Date(),
           level: 'info',
-          message: 'AI議事録生成を開始しました',
+          message: 'AIによる議事録生成を開始しました',
         }],
         startedAt: new Date(),
       });
@@ -327,13 +327,13 @@ export class OpenAIService {
       onProgress?.({
         stage: 'generating',
         percentage: 90,
-        currentTask: '議事録を整形中...',
+        currentTask: '議事録を美しく整形中...',
         estimatedTimeRemaining: 0,
         logs: [{
           id: Date.now().toString() + '_3',
           timestamp: new Date(),
           level: 'success',
-          message: 'AI議事録生成が完了しました',
+          message: 'AIによる議事録生成が完了しました',
         }],
         startedAt: new Date(),
       });

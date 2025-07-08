@@ -10,20 +10,159 @@ import {
   Security,
   Speed,
   HighQuality,
+  Help,
 } from '@mui/icons-material';
+import { useTheme } from '../theme';
 
 // ===========================================
 // MinutesGen v1.0 - アプリケーションフッター  
 // ===========================================
 
 export const AppFooter: React.FC = () => {
+  const { themeMode } = useTheme();
+
+  const getFooterBackground = () => {
+    switch (themeMode) {
+      case 'color':
+        return 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)';
+      case 'light':
+        return 'linear-gradient(135deg, #f5f5f5 0%, #e8f0fe 100%)';
+      case 'dark':
+        return 'linear-gradient(135deg, #424242 0%, #212121 100%)';
+      default:
+        return 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)';
+    }
+  };
+
+  const getBorderColor = () => {
+    switch (themeMode) {
+      case 'color':
+        return 'rgba(76, 175, 80, 0.2)';
+      case 'light':
+        return 'rgba(51, 51, 51, 0.1)';
+      case 'dark':
+        return 'rgba(66, 66, 66, 0.2)';
+      default:
+        return 'rgba(76, 175, 80, 0.2)';
+    }
+  };
+
+  const getGradientColor = () => {
+    switch (themeMode) {
+      case 'color':
+        return '#66bb6a';
+      case 'light':
+        return '#e8f0fe';
+      case 'dark':
+        return '#424242';
+      default:
+        return '#66bb6a';
+    }
+  };
+
+  const getTitleColor = () => {
+    switch (themeMode) {
+      case 'color':
+        return 'white';
+      case 'light':
+        return '#333333';
+      case 'dark':
+        return 'white';
+      default:
+        return 'white';
+    }
+  };
+
+  const getDescriptionColor = () => {
+    switch (themeMode) {
+      case 'color':
+        return 'rgba(255, 255, 255, 0.9)';
+      case 'light':
+        return 'rgba(51, 51, 51, 0.8)';
+      case 'dark':
+        return 'rgba(255, 255, 255, 0.9)';
+      default:
+        return 'rgba(255, 255, 255, 0.9)';
+    }
+  };
+
+  const getChipColors = () => {
+    switch (themeMode) {
+      case 'color':
+        return {
+          backgroundColor: 'rgba(255, 255, 255, 0.2)',
+          color: 'white',
+          border: '1px solid rgba(255, 255, 255, 0.3)',
+        };
+      case 'light':
+        return {
+          backgroundColor: 'rgba(51, 51, 51, 0.1)',
+          color: '#333333',
+          border: '1px solid rgba(51, 51, 51, 0.2)',
+        };
+      case 'dark':
+        return {
+          backgroundColor: 'rgba(255, 255, 255, 0.2)',
+          color: 'white',
+          border: '1px solid rgba(255, 255, 255, 0.3)',
+        };
+      default:
+        return {
+          backgroundColor: 'rgba(255, 255, 255, 0.2)',
+          color: 'white',
+          border: '1px solid rgba(255, 255, 255, 0.3)',
+        };
+    }
+  };
+
+  const getButtonColors = () => {
+    switch (themeMode) {
+      case 'color':
+        return {
+          color: 'white',
+          borderColor: 'rgba(255, 255, 255, 0.5)',
+          '&:hover': {
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            borderColor: 'white',
+          },
+        };
+      case 'light':
+        return {
+          color: '#333333',
+          borderColor: 'rgba(51, 51, 51, 0.3)',
+          '&:hover': {
+            backgroundColor: 'rgba(51, 51, 51, 0.1)',
+            borderColor: '#333333',
+          },
+        };
+      case 'dark':
+        return {
+          color: 'white',
+          borderColor: 'rgba(255, 255, 255, 0.5)',
+          '&:hover': {
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            borderColor: 'white',
+          },
+        };
+      default:
+        return {
+          color: 'white',
+          borderColor: 'rgba(255, 255, 255, 0.5)',
+          '&:hover': {
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            borderColor: 'white',
+          },
+        };
+    }
+  };
+
   return (
     <Box
       component="footer"
       sx={{
         mt: 'auto',
-        background: 'linear-gradient(135deg, #f1f8e9 0%, #e8f5e8 100%)',
-        borderTop: '1px solid rgba(76, 175, 80, 0.2)',
+        background: getFooterBackground(),
+        borderTop: `1px solid ${getBorderColor()}`,
         py: 3,
         position: 'relative',
         '&::before': {
@@ -33,7 +172,7 @@ export const AppFooter: React.FC = () => {
           left: 0,
           right: 0,
           height: 1,
-          background: 'linear-gradient(90deg, transparent, #66bb6a, transparent)',
+          background: 'transparent',
         },
       }}
     >
@@ -47,25 +186,22 @@ export const AppFooter: React.FC = () => {
                 variant="h6"
                 sx={{
                   fontWeight: 700,
-                  color: 'primary.dark',
+                  color: getTitleColor(),
                   mb: 0.5,
-                  background: 'linear-gradient(135deg, #2e7d32 0%, #388e3c 100%)',
-                  backgroundClip: 'text',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
                 }}
               >
-                MinutesGen v1.0
+                MinutesGen
               </Typography>
               <Typography
                 variant="body2"
                 sx={{
-                  color: 'text.secondary',
+                  color: getDescriptionColor(),
                   lineHeight: 1.4,
                   maxWidth: '400px',
                 }}
               >
-                AIを活用した次世代の議事録生成ツール。音声ファイルを美しい議事録に変換し、チームの生産性を向上させます。
+                dJ基準で全情報入力可能な議事録生成ツール<br />
+                巨大なデータも読み込め、出力形式も多様
               </Typography>
             </Box>
             
@@ -75,31 +211,19 @@ export const AppFooter: React.FC = () => {
                 icon={<Security />}
                 label="セキュア"
                 size="small"
-                sx={{
-                  backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                  color: 'primary.dark',
-                  border: '1px solid rgba(76, 175, 80, 0.3)',
-                }}
+                sx={getChipColors()}
               />
               <Chip
                 icon={<Speed />}
                 label="高速"
                 size="small"
-                sx={{
-                  backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                  color: 'primary.dark',
-                  border: '1px solid rgba(76, 175, 80, 0.3)',
-                }}
+                sx={getChipColors()}
               />
               <Chip
                 icon={<HighQuality />}
                 label="高品質"
                 size="small"
-                sx={{
-                  backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                  color: 'primary.dark',
-                  border: '1px solid rgba(76, 175, 80, 0.3)',
-                }}
+                sx={getChipColors()}
               />
             </Box>
           </Box>
@@ -109,47 +233,19 @@ export const AppFooter: React.FC = () => {
             {/* リンクボタン */}
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Button
-                href="#"
                 variant="outlined"
                 size="small"
-                sx={{
-                  color: 'primary.dark',
-                  borderColor: 'rgba(76, 175, 80, 0.3)',
-                  '&:hover': {
-                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                    borderColor: 'primary.main',
-                  },
-                }}
-              >
-                セキュリティについて
-              </Button>
-              <Button
-                href="#"
-                variant="outlined"
-                size="small"
-                sx={{
-                  color: 'primary.dark',
-                  borderColor: 'rgba(76, 175, 80, 0.3)',
-                  '&:hover': {
-                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                    borderColor: 'primary.main',
-                  },
-                }}
+                startIcon={<Help />}
+                sx={getButtonColors()}
+                onClick={() => window.open('overview.html', '_blank')}
               >
                 概要と使い方
               </Button>
               <Button
-                href="#"
                 variant="outlined"
                 size="small"
-                sx={{
-                  color: 'primary.dark',
-                  borderColor: 'rgba(76, 175, 80, 0.3)',
-                  '&:hover': {
-                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                    borderColor: 'primary.main',
-                  },
-                }}
+                sx={getButtonColors()}
+                onClick={() => window.open('technical.html', '_blank')}
               >
                 技術仕様/更新履歴
               </Button>

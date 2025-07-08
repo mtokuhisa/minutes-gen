@@ -37,11 +37,14 @@ export interface ProcessingOptions {
   punctuation: boolean;
   timestamps: boolean;
   customPrompt?: string;
+  model: 'gpt-4.1' | 'o3';
+  selectedPrompt: string | null;
+  promptType: 'preset' | 'custom';
 }
 
 export type ProcessingSpeed = 'fast' | 'normal' | 'high-quality';
 export type ProcessingQuality = 'draft' | 'standard' | 'premium';
-export type OutputFormat = 'markdown' | 'word' | 'html' | 'pdf';
+export type OutputFormat = 'markdown' | 'word' | 'html';
 export type SupportedLanguage = 'ja' | 'en' | 'auto';
 
 // 処理進捗関連の型定義
@@ -208,6 +211,9 @@ export const DEFAULT_PROCESSING_OPTIONS: ProcessingOptions = {
   speakerDetection: true,
   punctuation: true,
   timestamps: true,
+  model: 'gpt-4.1',
+  selectedPrompt: null,
+  promptType: 'preset',
 };
 
 export const DEFAULT_APP_CONFIG: AppConfig = {

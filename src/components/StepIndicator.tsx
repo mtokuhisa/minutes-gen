@@ -80,6 +80,8 @@ const StepConnectorStyled = styled(StepConnector)(({ theme }) => ({
     backgroundColor: theme.palette.grey[200],
     borderRadius: 1,
     transition: 'all 0.3s ease',
+    marginTop: 0,
+    marginBottom: 0,
   },
   '&.Mui-active .MuiStepConnector-line': {
     backgroundImage: 'linear-gradient(95deg, #66bb6a 0%, #4caf50 100%)',
@@ -87,6 +89,23 @@ const StepConnectorStyled = styled(StepConnector)(({ theme }) => ({
   },
   '&.Mui-completed .MuiStepConnector-line': {
     backgroundImage: 'linear-gradient(95deg, #2e7d32 0%, #388e3c 100%)',
+  },
+  // 水平レイアウト時の縦位置中央合わせ
+  '&.MuiStepConnector-horizontal': {
+    top: '50%',
+    left: 'calc(-50% + 20px)',
+    right: 'calc(50% + 20px)',
+    transform: 'translateY(-50%)',
+  },
+  // 垂直レイアウト時の調整
+  '&.MuiStepConnector-vertical': {
+    marginLeft: 24,
+    minHeight: 40,
+    '& .MuiStepConnector-line': {
+      width: 3,
+      height: '100%',
+      minHeight: 40,
+    },
   },
   '@keyframes flow': {
     '0%': {
@@ -149,7 +168,9 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({
         width: '100%',
         py: 4,
         px: 2,
-        background: 'linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%)',
+        background: theme.palette.mode === 'dark' 
+          ? 'linear-gradient(135deg, #424242 0%, #303030 100%)'
+          : 'linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%)',
         borderRadius: 3,
         boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
         mb: 4,

@@ -172,7 +172,7 @@ const AppContent: React.FC = () => {
         }}
       >
         {/* ヘッダー */}
-        <AppHeader />
+        <AppHeader onRestart={handleRestart} />
 
         {/* メインコンテンツ */}
         <Container

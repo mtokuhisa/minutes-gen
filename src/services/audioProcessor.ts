@@ -81,9 +81,9 @@ export class AudioProcessorService {
       onProgress?.({
         stage: 'transcribing',
         percentage: 5,
-        currentTask: `ffmpeg.wasm を ${sourceName} から読込中...`,
+        currentTask: `音声処理ライブラリを${sourceName}から準備中...`,
         estimatedTimeRemaining: 0,
-        logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: `${sourceName} からの ffmpeg.wasm の初期化を開始します。` }],
+        logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: `${sourceName} からの音声処理ライブラリの準備を開始します。` }],
         startedAt: new Date(),
       });
 
@@ -96,9 +96,9 @@ export class AudioProcessorService {
         onProgress?.({
           stage: 'transcribing',
           percentage: 15,
-          currentTask: 'ffmpeg.wasm ライブラリの初期化完了',
+          currentTask: '音声処理ライブラリの準備完了',
           estimatedTimeRemaining: 0,
-          logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'success', message: `${sourceName} からの ffmpeg.wasm の初期化が完了しました。` }],
+          logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'success', message: `${sourceName} からの音声処理ライブラリの準備が完了しました。` }],
           startedAt: new Date(),
         });
         return true;
@@ -107,9 +107,9 @@ export class AudioProcessorService {
         onProgress?.({
             stage: 'transcribing',
             percentage: 10,
-            currentTask: `ffmpeg.wasm (${sourceName}) の読込失敗`,
+            currentTask: `音声処理ライブラリ(${sourceName})の準備失敗`,
             estimatedTimeRemaining: 0,
-            logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'warning', message: `${sourceName} からの読み込みに失敗しました。次のソースを試行します。` }],
+            logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'warning', message: `${sourceName} からの準備に失敗しました。次のソースを試行します。` }],
             startedAt: new Date(),
         });
         return false;
@@ -137,11 +137,11 @@ export class AudioProcessorService {
     }
     
     // --- 全て失敗 ---
-    const finalError = new Error('ローカルおよび全てのCDNからのffmpeg.wasmのダウンロードに失敗しました。ネットワーク接続を確認後、再度お試しください。');
+    const finalError = new Error('音声処理ライブラリの準備に失敗しました。ネットワーク接続を確認後、再度お試しください。');
     onProgress?.({
         stage: 'error',
         percentage: 100,
-        currentTask: '初期化エラー',
+        currentTask: '音声処理ライブラリの準備エラー',
         estimatedTimeRemaining: 0,
         logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'error', message: finalError.message }],
         startedAt: new Date(),
@@ -183,9 +183,9 @@ export class AudioProcessorService {
       onProgress?.({
         stage: 'transcribing',
         percentage: 20,
-        currentTask: '音声ファイルをffmpegにロード中...',
+        currentTask: '音声ファイルを解析準備中...',
         estimatedTimeRemaining: 0,
-        logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: '入力ファイルを ffmpeg.wasm の仮想ファイルシステムに書き込んでいます...' }],
+        logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: '音声ファイルを処理システムに読み込んでいます...' }],
         startedAt: new Date(),
       });
       await this.ffmpeg.writeFile(inputFileName, await fetchFile(file.rawFile));
@@ -212,9 +212,9 @@ export class AudioProcessorService {
       onProgress?.({
         stage: 'transcribing',
         percentage: 30,
-        currentTask: `ファイルを${totalSegments}個のセグメントに分割中...`,
+        currentTask: `大きなファイルをAI向けに${totalSegments}個に分割中...`,
         estimatedTimeRemaining: 0,
-        logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: `音声時間: ${Math.round(duration)}秒、セグメント数: ${totalSegments}。ffmpegで分割と形式変換を同時に開始します。` }],
+        logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: `音声時間: ${Math.round(duration)}秒、セグメント数: ${totalSegments}。AI処理に最適化した形式で分割を開始します。` }],
         startedAt: new Date(),
       });
 
@@ -245,9 +245,9 @@ export class AudioProcessorService {
          onProgress?.({
             stage: 'transcribing',
             percentage: 45,
-            currentTask: `ファイルを単一セグメントとして処理中...`,
+            currentTask: `音声ファイルをAI向けに最適化中...`,
             estimatedTimeRemaining: 0,
-            logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: `分割されなかったため、単一ファイルとして変換します。` }],
+            logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: `ファイルサイズが適切なため、AI処理に最適化した形式に変換します。` }],
             startedAt: new Date(),
         });
         const singleOutputName = "segment_000.wav";
@@ -266,9 +266,9 @@ export class AudioProcessorService {
         onProgress?.({
           stage: 'transcribing',
           percentage: 50 + Math.round((i / segmentFiles.length) * 45),
-          currentTask: `セグメント ${i + 1}/${segmentFiles.length} を処理中...`,
+          currentTask: `音声セグメント ${i + 1}/${segmentFiles.length} を準備中...`,
           estimatedTimeRemaining: 0,
-          logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: `${segmentFile.name} を読み込んでいます。` }],
+          logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: `音声セグメント ${i + 1} を処理システムに読み込んでいます。` }],
           startedAt: new Date(),
         });
 
@@ -295,9 +295,9 @@ export class AudioProcessorService {
       onProgress?.({
         stage: 'transcribing',
         percentage: 95,
-        currentTask: 'セグメント化完了',
+        currentTask: '音声ファイルの準備完了',
         estimatedTimeRemaining: 0,
-        logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'success', message: `合計 ${segments.length} 個のセグメントの準備が完了しました。` }],
+        logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'success', message: `合計 ${segments.length} 個の音声セグメントの準備が完了しました。` }],
         startedAt: new Date(),
       });
       
@@ -313,7 +313,7 @@ export class AudioProcessorService {
       onProgress?.({
         stage: 'error',
         percentage: 100,
-        currentTask: '処理エラー',
+        currentTask: '音声ファイル処理エラー',
         estimatedTimeRemaining: 0,
         logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'error', message: errorMessage }],
         startedAt: new Date(),
