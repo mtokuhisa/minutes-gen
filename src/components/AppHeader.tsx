@@ -6,7 +6,6 @@ import {
   Box,
   Button,
   Container,
-  useTheme,
   IconButton,
   Tooltip,
 } from '@mui/material';
@@ -14,18 +13,21 @@ import {
   AutoAwesome,
   Settings,
   Palette,
+  LightMode,
+  DarkMode,
   Help,
   GitHub,
 } from '@mui/icons-material';
 import { APISettings } from './APISettings';
 import { APIConfig, saveAPIConfig } from '../config/api';
+import { useTheme } from '../theme';
 
 // ===========================================
 // MinutesGen v1.0 - アプリケーションヘッダー
 // ===========================================
 
 export const AppHeader: React.FC = () => {
-  const theme = useTheme();
+  const { themeMode, toggleTheme, theme } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleSettingsOpen = () => {
@@ -49,8 +51,12 @@ export const AppHeader: React.FC = () => {
     <AppBar
       position="static"
       sx={{
-        background: 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)',
-        boxShadow: '0 4px 20px rgba(76, 175, 80, 0.3)',
+        background: themeMode === 'light' 
+          ? 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)'
+          : 'linear-gradient(135deg, #2e7d32 0%, #388e3c 100%)',
+        boxShadow: themeMode === 'light'
+          ? '0 4px 20px rgba(76, 175, 80, 0.3)'
+          : '0 4px 20px rgba(46, 125, 50, 0.4)',
         position: 'relative',
         overflow: 'hidden',
         '&::before': {
@@ -148,8 +154,9 @@ export const AppHeader: React.FC = () => {
               </IconButton>
             </Tooltip>
 
-            <Tooltip title="テーマ">
+            <Tooltip title={themeMode === 'light' ? 'ダークモードに切り替え' : 'ライトモードに切り替え'}>
               <IconButton
+                onClick={toggleTheme}
                 sx={{
                   color: 'white',
                   backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -161,7 +168,7 @@ export const AppHeader: React.FC = () => {
                   borderRadius: 2,
                 }}
               >
-                <Palette />
+                {themeMode === 'light' ? <DarkMode /> : <LightMode />}
               </IconButton>
             </Tooltip>
           </Box>

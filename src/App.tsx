@@ -3,7 +3,6 @@ import {
   Box,
   Container,
   CssBaseline,
-  ThemeProvider,
   Button,
   Fab,
   Zoom,
@@ -11,7 +10,7 @@ import {
   Alert,
 } from '@mui/material';
 import { PlayArrow, Refresh } from '@mui/icons-material';
-import { theme } from './theme';
+import { ThemeProvider, useTheme } from './theme';
 import { useAppState } from './hooks/useAppState';
 import { AppHeader } from './components/AppHeader';
 import { AppFooter } from './components/AppFooter';
@@ -28,7 +27,8 @@ import { getAPIConfig, validateAPIConfig } from './config/api';
 // MinutesGen v1.0 - メインアプリケーション
 // ===========================================
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
+  const { themeMode } = useTheme();
   const [showAPISetup, setShowAPISetup] = useState(false);
   
   const {
@@ -155,7 +155,7 @@ const App: React.FC = () => {
   const canGoPrev = currentStep > 0 && !isProcessing;
 
   return (
-    <ThemeProvider theme={theme}>
+    <>
       <CssBaseline />
       
       {/* メインレイアウト */}
@@ -164,7 +164,9 @@ const App: React.FC = () => {
           display: 'flex',
           flexDirection: 'column',
           minHeight: '100vh',
-          background: 'linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%)',
+          background: themeMode === 'light'
+            ? 'linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%)'
+            : 'linear-gradient(135deg, #121212 0%, #1e1e1e 100%)',
         }}
       >
         {/* ヘッダー */}
@@ -200,9 +202,11 @@ const App: React.FC = () => {
                 alignItems: 'center',
                 mt: 4,
                 p: 3,
-                backgroundColor: 'white',
+                backgroundColor: 'background.paper',
                 borderRadius: 3,
-                boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
+                boxShadow: themeMode === 'light'
+                  ? '0 2px 10px rgba(0, 0, 0, 0.1)'
+                  : '0 2px 10px rgba(0, 0, 0, 0.3)',
               }}
             >
               <Button
@@ -242,10 +246,14 @@ const App: React.FC = () => {
                   fontWeight: 600,
                   borderRadius: 2,
                   background: canGoNext 
-                    ? 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)'
+                    ? themeMode === 'light'
+                      ? 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)'
+                      : 'linear-gradient(135deg, #81c784 0%, #66bb6a 100%)'
                     : undefined,
                   '&:hover': canGoNext ? {
-                    background: 'linear-gradient(135deg, #5cb85c 0%, #46a049 100%)',
+                    background: themeMode === 'light'
+                      ? 'linear-gradient(135deg, #5cb85c 0%, #46a049 100%)'
+                      : 'linear-gradient(135deg, #7cb87c 0%, #5cb85c 100%)',
                   } : undefined,
                   '&:disabled': {
                     backgroundColor: 'grey.300',
@@ -268,11 +276,17 @@ const App: React.FC = () => {
                   position: 'fixed',
                   bottom: 32,
                   right: 32,
-                  background: 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)',
+                  background: themeMode === 'light'
+                    ? 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)'
+                    : 'linear-gradient(135deg, #81c784 0%, #66bb6a 100%)',
                   '&:hover': {
-                    background: 'linear-gradient(135deg, #5cb85c 0%, #46a049 100%)',
+                    background: themeMode === 'light'
+                      ? 'linear-gradient(135deg, #5cb85c 0%, #46a049 100%)'
+                      : 'linear-gradient(135deg, #7cb87c 0%, #5cb85c 100%)',
                   },
-                  boxShadow: '0 4px 20px rgba(76, 175, 80, 0.4)',
+                  boxShadow: themeMode === 'light'
+                    ? '0 4px 20px rgba(76, 175, 80, 0.4)'
+                    : '0 4px 20px rgba(129, 199, 132, 0.4)',
                 }}
               >
                 <Refresh />
@@ -307,6 +321,14 @@ const App: React.FC = () => {
           </Alert>
         </Snackbar>
       </Box>
+    </>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <ThemeProvider>
+      <AppContent />
     </ThemeProvider>
   );
 };
