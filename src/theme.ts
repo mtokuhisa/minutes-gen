@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { createTheme, Theme, ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 
-// ライトテーマ
-export const lightTheme = createTheme({
+// カラー（グリーン）テーマ
+export const colorTheme = createTheme({
   palette: {
     mode: 'light',
     primary: {
@@ -26,18 +26,59 @@ export const lightTheme = createTheme({
   },
   typography: {
     fontFamily: '"Noto Sans JP", "Roboto", "Helvetica", "Arial", sans-serif',
-    h1: {
-      fontWeight: 700,
+    h1: { fontWeight: 700 },
+    h2: { fontWeight: 600 },
+    h3: { fontWeight: 600 },
+    button: { textTransform: 'none' },
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          padding: '8px 16px',
+        },
+      },
     },
-    h2: {
-      fontWeight: 600,
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: 12,
+        },
+      },
     },
-    h3: {
-      fontWeight: 600,
+  },
+});
+
+// ライトテーマ
+export const lightTheme = createTheme({
+  palette: {
+    mode: 'light',
+    primary: {
+      main: '#1976d2',
+      light: '#42a5f5',
+      dark: '#1565c0',
     },
-    button: {
-      textTransform: 'none',
+    secondary: {
+      main: '#9c27b0',
+      light: '#ba68c8',
+      dark: '#7b1fa2',
     },
+    background: {
+      default: '#fafafa',
+      paper: '#ffffff',
+    },
+    text: {
+      primary: '#212121',
+      secondary: '#757575',
+    },
+  },
+  typography: {
+    fontFamily: '"Noto Sans JP", "Roboto", "Helvetica", "Arial", sans-serif',
+    h1: { fontWeight: 700 },
+    h2: { fontWeight: 600 },
+    h3: { fontWeight: 600 },
+    button: { textTransform: 'none' },
   },
   components: {
     MuiButton: {
@@ -63,38 +104,30 @@ export const darkTheme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#81c784',
-      light: '#a5d6a7',
-      dark: '#4caf50',
+      main: '#90caf9',
+      light: '#e3f2fd',
+      dark: '#42a5f5',
     },
     secondary: {
-      main: '#66bb6a',
-      light: '#c8e6c9',
-      dark: '#388e3c',
+      main: '#ce93d8',
+      light: '#f3e5f5',
+      dark: '#ab47bc',
     },
     background: {
       default: '#121212',
       paper: '#1e1e1e',
     },
     text: {
-      primary: '#e8f5e8',
-      secondary: '#a5d6a7',
+      primary: '#ffffff',
+      secondary: '#aaaaaa',
     },
   },
   typography: {
     fontFamily: '"Noto Sans JP", "Roboto", "Helvetica", "Arial", sans-serif',
-    h1: {
-      fontWeight: 700,
-    },
-    h2: {
-      fontWeight: 600,
-    },
-    h3: {
-      fontWeight: 600,
-    },
-    button: {
-      textTransform: 'none',
-    },
+    h1: { fontWeight: 700 },
+    h2: { fontWeight: 600 },
+    h3: { fontWeight: 600 },
+    button: { textTransform: 'none' },
   },
   components: {
     MuiButton: {
@@ -116,7 +149,7 @@ export const darkTheme = createTheme({
 });
 
 // テーマタイプ
-export type ThemeMode = 'light' | 'dark';
+export type ThemeMode = 'color' | 'light' | 'dark';
 
 // テーマコンテキスト
 interface ThemeContextType {
@@ -134,25 +167,40 @@ interface ThemeProviderProps {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    // ローカルストレージから設定を読み込み
     const savedTheme = localStorage.getItem('minutesgen-theme');
-    return (savedTheme as ThemeMode) || 'light';
+    return (savedTheme as ThemeMode) || 'color';
   });
 
-  const theme = themeMode === 'light' ? lightTheme : darkTheme;
+  const getTheme = (mode: ThemeMode): Theme => {
+    switch (mode) {
+      case 'color':
+        return colorTheme;
+      case 'light':
+        return lightTheme;
+      case 'dark':
+        return darkTheme;
+      default:
+        return colorTheme;
+    }
+  };
+
+  const theme = getTheme(themeMode);
 
   const toggleTheme = () => {
-    const newTheme = themeMode === 'light' ? 'dark' : 'light';
+    const themeOrder: ThemeMode[] = ['color', 'light', 'dark'];
+    const currentIndex = themeOrder.indexOf(themeMode);
+    const nextIndex = (currentIndex + 1) % themeOrder.length;
+    const newTheme = themeOrder[nextIndex];
+    
     setThemeMode(newTheme);
     localStorage.setItem('minutesgen-theme', newTheme);
   };
 
   useEffect(() => {
-    // システムのダークモード設定を監視
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e: MediaQueryListEvent) => {
       if (!localStorage.getItem('minutesgen-theme')) {
-        setThemeMode(e.matches ? 'dark' : 'light');
+        setThemeMode(e.matches ? 'dark' : 'color');
       }
     };
 
@@ -179,4 +227,4 @@ export const useTheme = () => {
 };
 
 // 後方互換性のため
-export const theme = lightTheme; 
+export const theme = colorTheme; 

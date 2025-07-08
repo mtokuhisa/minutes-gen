@@ -164,7 +164,9 @@ const AppContent: React.FC = () => {
           display: 'flex',
           flexDirection: 'column',
           minHeight: '100vh',
-          background: themeMode === 'light'
+          background: themeMode === 'color'
+            ? 'linear-gradient(135deg, #f1f8e9 0%, #e8f5e8 100%)'
+            : themeMode === 'light'
             ? 'linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%)'
             : 'linear-gradient(135deg, #121212 0%, #1e1e1e 100%)',
         }}
@@ -204,9 +206,9 @@ const AppContent: React.FC = () => {
                 p: 3,
                 backgroundColor: 'background.paper',
                 borderRadius: 3,
-                boxShadow: themeMode === 'light'
-                  ? '0 2px 10px rgba(0, 0, 0, 0.1)'
-                  : '0 2px 10px rgba(0, 0, 0, 0.3)',
+                boxShadow: themeMode === 'dark'
+                  ? '0 2px 10px rgba(0, 0, 0, 0.3)'
+                  : '0 2px 10px rgba(0, 0, 0, 0.1)',
               }}
             >
               <Button
@@ -246,14 +248,18 @@ const AppContent: React.FC = () => {
                   fontWeight: 600,
                   borderRadius: 2,
                   background: canGoNext 
-                    ? themeMode === 'light'
+                    ? themeMode === 'color'
                       ? 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)'
-                      : 'linear-gradient(135deg, #81c784 0%, #66bb6a 100%)'
+                      : themeMode === 'light'
+                      ? 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)'
+                      : 'linear-gradient(135deg, #90caf9 0%, #42a5f5 100%)'
                     : undefined,
                   '&:hover': canGoNext ? {
-                    background: themeMode === 'light'
+                    background: themeMode === 'color'
                       ? 'linear-gradient(135deg, #5cb85c 0%, #46a049 100%)'
-                      : 'linear-gradient(135deg, #7cb87c 0%, #5cb85c 100%)',
+                      : themeMode === 'light'
+                      ? 'linear-gradient(135deg, #1565c0 0%, #0d47a1 100%)'
+                      : 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)',
                   } : undefined,
                   '&:disabled': {
                     backgroundColor: 'grey.300',
@@ -276,17 +282,23 @@ const AppContent: React.FC = () => {
                   position: 'fixed',
                   bottom: 32,
                   right: 32,
-                  background: themeMode === 'light'
+                  background: themeMode === 'color'
                     ? 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)'
-                    : 'linear-gradient(135deg, #81c784 0%, #66bb6a 100%)',
+                    : themeMode === 'light'
+                    ? 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)'
+                    : 'linear-gradient(135deg, #90caf9 0%, #42a5f5 100%)',
                   '&:hover': {
-                    background: themeMode === 'light'
+                    background: themeMode === 'color'
                       ? 'linear-gradient(135deg, #5cb85c 0%, #46a049 100%)'
-                      : 'linear-gradient(135deg, #7cb87c 0%, #5cb85c 100%)',
+                      : themeMode === 'light'
+                      ? 'linear-gradient(135deg, #1565c0 0%, #0d47a1 100%)'
+                      : 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)',
                   },
-                  boxShadow: themeMode === 'light'
+                  boxShadow: themeMode === 'color'
                     ? '0 4px 20px rgba(76, 175, 80, 0.4)'
-                    : '0 4px 20px rgba(129, 199, 132, 0.4)',
+                    : themeMode === 'light'
+                    ? '0 4px 20px rgba(25, 118, 210, 0.4)'
+                    : '0 4px 20px rgba(144, 202, 249, 0.4)',
                 }}
               >
                 <Refresh />

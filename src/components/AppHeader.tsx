@@ -51,12 +51,16 @@ export const AppHeader: React.FC = () => {
     <AppBar
       position="static"
       sx={{
-        background: themeMode === 'light' 
+        background: themeMode === 'color' 
           ? 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)'
-          : 'linear-gradient(135deg, #2e7d32 0%, #388e3c 100%)',
-        boxShadow: themeMode === 'light'
+          : themeMode === 'light'
+          ? 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)'
+          : 'linear-gradient(135deg, #90caf9 0%, #42a5f5 100%)',
+        boxShadow: themeMode === 'color'
           ? '0 4px 20px rgba(76, 175, 80, 0.3)'
-          : '0 4px 20px rgba(46, 125, 50, 0.4)',
+          : themeMode === 'light'
+          ? '0 4px 20px rgba(25, 118, 210, 0.3)'
+          : '0 4px 20px rgba(144, 202, 249, 0.4)',
         position: 'relative',
         overflow: 'hidden',
         '&::before': {
@@ -154,7 +158,7 @@ export const AppHeader: React.FC = () => {
               </IconButton>
             </Tooltip>
 
-            <Tooltip title={themeMode === 'light' ? 'ダークモードに切り替え' : 'ライトモードに切り替え'}>
+            <Tooltip title={`テーマ切り替え (現在: ${themeMode === 'color' ? 'カラー' : themeMode === 'light' ? 'ライト' : 'ダーク'})`}>
               <IconButton
                 onClick={toggleTheme}
                 sx={{
@@ -168,7 +172,7 @@ export const AppHeader: React.FC = () => {
                   borderRadius: 2,
                 }}
               >
-                {themeMode === 'light' ? <DarkMode /> : <LightMode />}
+                {themeMode === 'color' ? <Palette /> : themeMode === 'light' ? <LightMode /> : <DarkMode />}
               </IconButton>
             </Tooltip>
           </Box>
