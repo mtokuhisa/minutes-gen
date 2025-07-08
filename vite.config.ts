@@ -24,8 +24,9 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
     include: [
-      '@mui/material/Tooltip',
-      '@mui/material/Unstable_Grid2',
+      '@mui/material',
+      '@mui/icons-material',
+      '@emotion/react',
       '@emotion/styled',
     ],
   },

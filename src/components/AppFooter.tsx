@@ -3,18 +3,10 @@ import {
   Box,
   Container,
   Typography,
-  Link,
-  Grid,
-  IconButton,
-  Divider,
+  Button,
   Chip,
 } from '@mui/material';
 import {
-  GitHub,
-  Twitter,
-  LinkedIn,
-  Email,
-  Favorite,
   Security,
   Speed,
   HighQuality,
@@ -25,8 +17,6 @@ import {
 // ===========================================
 
 export const AppFooter: React.FC = () => {
-  const currentYear = new Date().getFullYear();
-
   return (
     <Box
       component="footer"
@@ -34,7 +24,7 @@ export const AppFooter: React.FC = () => {
         mt: 'auto',
         background: 'linear-gradient(135deg, #f1f8e9 0%, #e8f5e8 100%)',
         borderTop: '1px solid rgba(76, 175, 80, 0.2)',
-        py: 6,
+        py: 3,
         position: 'relative',
         '&::before': {
           content: '""',
@@ -49,16 +39,16 @@ export const AppFooter: React.FC = () => {
     >
       <Container maxWidth="lg">
         {/* メイン情報セクション */}
-        <Grid container spacing={4} sx={{ mb: 4 }}>
-          {/* ブランドセクション */}
-          <Grid item xs={12} md={4}>
-            <Box sx={{ mb: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 3 }}>
+          {/* 左側：ブランドと説明 */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flex: 1 }}>
+            <Box>
               <Typography
                 variant="h6"
                 sx={{
                   fontWeight: 700,
                   color: 'primary.dark',
-                  mb: 1,
+                  mb: 0.5,
                   background: 'linear-gradient(135deg, #2e7d32 0%, #388e3c 100%)',
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
@@ -71,254 +61,112 @@ export const AppFooter: React.FC = () => {
                 variant="body2"
                 sx={{
                   color: 'text.secondary',
-                  lineHeight: 1.6,
-                  mb: 2,
+                  lineHeight: 1.4,
+                  maxWidth: '400px',
                 }}
               >
-                AIを活用した次世代の議事録生成ツール。
-                音声ファイルを美しい議事録に変換し、
-                チームの生産性を向上させます。
+                AIを活用した次世代の議事録生成ツール。音声ファイルを美しい議事録に変換し、チームの生産性を向上させます。
               </Typography>
-              
-              {/* 特徴バッジ */}
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                <Chip
-                  icon={<Security />}
-                  label="セキュア"
-                  size="small"
-                  sx={{
-                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                    color: 'primary.dark',
-                    border: '1px solid rgba(76, 175, 80, 0.3)',
-                  }}
-                />
-                <Chip
-                  icon={<Speed />}
-                  label="高速"
-                  size="small"
-                  sx={{
-                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                    color: 'primary.dark',
-                    border: '1px solid rgba(76, 175, 80, 0.3)',
-                  }}
-                />
-                <Chip
-                  icon={<HighQuality />}
-                  label="高品質"
-                  size="small"
-                  sx={{
-                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                    color: 'primary.dark',
-                    border: '1px solid rgba(76, 175, 80, 0.3)',
-                  }}
-                />
-              </Box>
             </Box>
-          </Grid>
-
-          {/* クイックリンクセクション */}
-          <Grid item xs={12} md={4}>
-            <Typography
-              variant="subtitle1"
-              sx={{
-                fontWeight: 600,
-                color: 'primary.dark',
-                mb: 2,
-              }}
-            >
-              クイックリンク
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <Link
-                href="#"
+            
+            {/* 特徴バッジ */}
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Chip
+                icon={<Security />}
+                label="セキュア"
+                size="small"
                 sx={{
-                  color: 'text.secondary',
-                  textDecoration: 'none',
-                  '&:hover': {
-                    color: 'primary.main',
-                    textDecoration: 'underline',
-                  },
-                  transition: 'color 0.3s ease',
+                  backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                  color: 'primary.dark',
+                  border: '1px solid rgba(76, 175, 80, 0.3)',
                 }}
-              >
-                使い方ガイド
-              </Link>
-              <Link
-                href="#"
+              />
+              <Chip
+                icon={<Speed />}
+                label="高速"
+                size="small"
                 sx={{
-                  color: 'text.secondary',
-                  textDecoration: 'none',
-                  '&:hover': {
-                    color: 'primary.main',
-                    textDecoration: 'underline',
-                  },
-                  transition: 'color 0.3s ease',
+                  backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                  color: 'primary.dark',
+                  border: '1px solid rgba(76, 175, 80, 0.3)',
                 }}
-              >
-                プライバシーポリシー
-              </Link>
-              <Link
-                href="#"
+              />
+              <Chip
+                icon={<HighQuality />}
+                label="高品質"
+                size="small"
                 sx={{
-                  color: 'text.secondary',
-                  textDecoration: 'none',
-                  '&:hover': {
-                    color: 'primary.main',
-                    textDecoration: 'underline',
-                  },
-                  transition: 'color 0.3s ease',
+                  backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                  color: 'primary.dark',
+                  border: '1px solid rgba(76, 175, 80, 0.3)',
                 }}
-              >
-                利用規約
-              </Link>
-              <Link
-                href="#"
-                sx={{
-                  color: 'text.secondary',
-                  textDecoration: 'none',
-                  '&:hover': {
-                    color: 'primary.main',
-                    textDecoration: 'underline',
-                  },
-                  transition: 'color 0.3s ease',
-                }}
-              >
-                サポート
-              </Link>
-              <Link
-                href="#"
-                sx={{
-                  color: 'text.secondary',
-                  textDecoration: 'none',
-                  '&:hover': {
-                    color: 'primary.main',
-                    textDecoration: 'underline',
-                  },
-                  transition: 'color 0.3s ease',
-                }}
-              >
-                API ドキュメント
-              </Link>
+              />
             </Box>
-          </Grid>
+          </Box>
 
-          {/* コンタクトセクション */}
-          <Grid item xs={12} md={4}>
-            <Typography
-              variant="subtitle1"
-              sx={{
-                fontWeight: 600,
-                color: 'primary.dark',
-                mb: 2,
-              }}
-            >
-              お問い合わせ
-            </Typography>
+          {/* 右側：リンクボタンとバージョン */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1.5 }}>
+            {/* リンクボタン */}
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                href="#"
+                variant="outlined"
+                size="small"
+                sx={{
+                  color: 'primary.dark',
+                  borderColor: 'rgba(76, 175, 80, 0.3)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                    borderColor: 'primary.main',
+                  },
+                }}
+              >
+                セキュリティについて
+              </Button>
+              <Button
+                href="#"
+                variant="outlined"
+                size="small"
+                sx={{
+                  color: 'primary.dark',
+                  borderColor: 'rgba(76, 175, 80, 0.3)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                    borderColor: 'primary.main',
+                  },
+                }}
+              >
+                概要と使い方
+              </Button>
+              <Button
+                href="#"
+                variant="outlined"
+                size="small"
+                sx={{
+                  color: 'primary.dark',
+                  borderColor: 'rgba(76, 175, 80, 0.3)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                    borderColor: 'primary.main',
+                  },
+                }}
+              >
+                技術仕様/更新履歴
+              </Button>
+            </Box>
+            
+            {/* バージョン情報 */}
             <Typography
               variant="body2"
               sx={{
                 color: 'text.secondary',
-                mb: 2,
+                fontFamily: 'monospace',
+                fontSize: '0.75rem',
               }}
             >
-              ご質問やフィードバックがございましたら、
-              お気軽にお聞かせください。
+              v0.7.0 | Build 2025.07.09
             </Typography>
-            
-            {/* ソーシャルリンク */}
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <IconButton
-                component="a"
-                href="https://github.com/minutesgen"
-                target="_blank"
-                rel="noopener noreferrer"
-                sx={{
-                  backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                  color: 'primary.dark',
-                  '&:hover': {
-                    backgroundColor: 'primary.main',
-                    color: 'white',
-                    transform: 'translateY(-2px)',
-                  },
-                  transition: 'all 0.3s ease',
-                }}
-              >
-                <GitHub />
-              </IconButton>
-              <IconButton
-                component="a"
-                href="https://twitter.com/minutesgen"
-                target="_blank"
-                rel="noopener noreferrer"
-                sx={{
-                  backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                  color: 'primary.dark',
-                  '&:hover': {
-                    backgroundColor: 'primary.main',
-                    color: 'white',
-                    transform: 'translateY(-2px)',
-                  },
-                  transition: 'all 0.3s ease',
-                }}
-              >
-                <Twitter />
-              </IconButton>
-              <IconButton
-                component="a"
-                href="mailto:support@minutesgen.com"
-                sx={{
-                  backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                  color: 'primary.dark',
-                  '&:hover': {
-                    backgroundColor: 'primary.main',
-                    color: 'white',
-                    transform: 'translateY(-2px)',
-                  },
-                  transition: 'all 0.3s ease',
-                }}
-              >
-                <Email />
-              </IconButton>
-            </Box>
-          </Grid>
-        </Grid>
-
-        <Divider sx={{ mb: 3, borderColor: 'rgba(76, 175, 80, 0.2)' }} />
-
-        {/* コピーライトセクション */}
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 2,
-          }}
-        >
-          <Typography
-            variant="body2"
-            sx={{
-              color: 'text.secondary',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 0.5,
-            }}
-          >
-            © {currentYear} MinutesGen. Made with{' '}
-            <Favorite sx={{ fontSize: 16, color: 'error.main' }} />{' '}
-            by AI Assistant
-          </Typography>
-          
-          <Typography
-            variant="body2"
-            sx={{
-              color: 'text.secondary',
-              fontFamily: 'monospace',
-              fontSize: '0.75rem',
-            }}
-          >
-            v1.0.0 | Build 2024.01
-          </Typography>
+          </Box>
         </Box>
       </Container>
     </Box>

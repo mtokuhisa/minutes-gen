@@ -164,45 +164,6 @@ export const AppHeader: React.FC = () => {
                 <Palette />
               </IconButton>
             </Tooltip>
-
-            <Tooltip title="ヘルプ">
-              <IconButton
-                sx={{
-                  color: 'white',
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    transform: 'translateY(-2px)',
-                  },
-                  transition: 'all 0.3s ease',
-                  borderRadius: 2,
-                }}
-              >
-                <Help />
-              </IconButton>
-            </Tooltip>
-
-            <Tooltip title="GitHub">
-              <IconButton
-                component="a"
-                href="https://github.com/minutesgen/v1.0"
-                target="_blank"
-                rel="noopener noreferrer"
-                sx={{
-                  color: 'white',
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    transform: 'translateY(-2px)',
-                  },
-                  transition: 'all 0.3s ease',
-                  borderRadius: 2,
-                  ml: 1,
-                }}
-              >
-                <GitHub />
-              </IconButton>
-            </Tooltip>
           </Box>
         </Toolbar>
       </Container>

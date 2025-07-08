@@ -179,11 +179,42 @@ export const Results: React.FC<ResultsProps> = ({
   return (
     <Box sx={{ width: '100%' }}>
       {/* ヘッダー */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      <Card 
+        sx={{ 
+          mb: 3,
+          background: 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)',
+          color: 'white',
+          boxShadow: '0 8px 32px rgba(76, 175, 80, 0.3)',
+          borderRadius: 3,
+          position: 'relative',
+          overflow: 'hidden',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: '-100%',
+            width: '100%',
+            height: '100%',
+            background: 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent)',
+            animation: 'shimmer 3s infinite',
+          },
+          '@keyframes shimmer': {
+            '0%': { left: '-100%' },
+            '100%': { left: '100%' },
+          },
+        }}
+      >
+        <CardContent sx={{ p: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
             <Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
+              <Typography 
+                variant="h4" 
+                sx={{ 
+                  fontWeight: 700, 
+                  mb: 1,
+                  textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                }}
+              >
                 {results.title}
               </Typography>
               <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
@@ -191,19 +222,31 @@ export const Results: React.FC<ResultsProps> = ({
                   icon={<Schedule />}
                   label={results.date.toLocaleDateString()}
                   size="small"
-                  sx={{ backgroundColor: 'rgba(76, 175, 80, 0.1)' }}
+                  sx={{ 
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    color: 'white',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                  }}
                 />
                 <Chip
                   icon={<AccessTime />}
                   label={formatDuration(results.duration)}
                   size="small"
-                  sx={{ backgroundColor: 'rgba(76, 175, 80, 0.1)' }}
+                  sx={{ 
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    color: 'white',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                  }}
                 />
                 <Chip
                   icon={<People />}
                   label={`${results.participants.length}人`}
                   size="small"
-                  sx={{ backgroundColor: 'rgba(76, 175, 80, 0.1)' }}
+                  sx={{ 
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    color: 'white',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                  }}
                 />
               </Box>
             </Box>
@@ -212,7 +255,15 @@ export const Results: React.FC<ResultsProps> = ({
                 variant="outlined"
                 startIcon={<Share />}
                 onClick={handleShare}
-                sx={{ borderRadius: 2 }}
+                sx={{ 
+                  borderRadius: 2,
+                  color: 'white',
+                  borderColor: 'rgba(255, 255, 255, 0.5)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    borderColor: 'white',
+                  },
+                }}
               >
                 共有
               </Button>
@@ -221,7 +272,15 @@ export const Results: React.FC<ResultsProps> = ({
                   variant="outlined"
                   startIcon={<Edit />}
                   onClick={() => onEdit(results)}
-                  sx={{ borderRadius: 2 }}
+                  sx={{ 
+                    borderRadius: 2,
+                    color: 'white',
+                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      borderColor: 'white',
+                    },
+                  }}
                 >
                   編集
                 </Button>
@@ -231,7 +290,15 @@ export const Results: React.FC<ResultsProps> = ({
                   variant="outlined"
                   startIcon={<PlayArrow />}
                   onClick={onRestart}
-                  sx={{ borderRadius: 2 }}
+                  sx={{ 
+                    borderRadius: 2,
+                    color: 'white',
+                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      borderColor: 'white',
+                    },
+                  }}
                 >
                   再実行
                 </Button>
@@ -240,7 +307,18 @@ export const Results: React.FC<ResultsProps> = ({
           </Box>
 
           {/* サマリー */}
-          <Alert severity="info" sx={{ mb: 2 }}>
+          <Alert 
+            severity="info" 
+            sx={{ 
+              mb: 3,
+              backgroundColor: 'rgba(255, 255, 255, 0.15)',
+              color: 'white',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              '& .MuiAlert-icon': {
+                color: 'white',
+              },
+            }}
+          >
             <Typography variant="body1" sx={{ fontWeight: 500 }}>
               {results.summary}
             </Typography>
@@ -249,41 +327,125 @@ export const Results: React.FC<ResultsProps> = ({
           {/* 統計情報 */}
           <Grid container spacing={2}>
             <Grid item xs={12} sm={3}>
-              <Paper sx={{ p: 2, textAlign: 'center', backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+              <Paper 
+                sx={{ 
+                  p: 2, 
+                  textAlign: 'center',
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  backdropFilter: 'blur(10px)',
+                  borderRadius: 2,
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+                  transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
+                  },
+                }}
+              >
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontWeight: 700, 
+                    color: 'primary.main',
+                    mb: 1,
+                  }}
+                >
                   {results.keyPoints.length}
                 </Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>
                   重要なポイント
                 </Typography>
               </Paper>
             </Grid>
             <Grid item xs={12} sm={3}>
-              <Paper sx={{ p: 2, textAlign: 'center', backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+              <Paper 
+                sx={{ 
+                  p: 2, 
+                  textAlign: 'center',
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  backdropFilter: 'blur(10px)',
+                  borderRadius: 2,
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+                  transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
+                  },
+                }}
+              >
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontWeight: 700, 
+                    color: 'primary.main',
+                    mb: 1,
+                  }}
+                >
                   {results.actionItems.length}
                 </Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>
                   アクション項目
                 </Typography>
               </Paper>
             </Grid>
             <Grid item xs={12} sm={3}>
-              <Paper sx={{ p: 2, textAlign: 'center', backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+              <Paper 
+                sx={{ 
+                  p: 2, 
+                  textAlign: 'center',
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  backdropFilter: 'blur(10px)',
+                  borderRadius: 2,
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+                  transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
+                  },
+                }}
+              >
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontWeight: 700, 
+                    color: 'primary.main',
+                    mb: 1,
+                  }}
+                >
                   {results.transcription.length}
                 </Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>
                   発言セグメント
                 </Typography>
               </Paper>
             </Grid>
             <Grid item xs={12} sm={3}>
-              <Paper sx={{ p: 2, textAlign: 'center', backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+              <Paper 
+                sx={{ 
+                  p: 2, 
+                  textAlign: 'center',
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  backdropFilter: 'blur(10px)',
+                  borderRadius: 2,
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+                  transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
+                  },
+                }}
+              >
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontWeight: 700, 
+                    color: 'primary.main',
+                    mb: 1,
+                  }}
+                >
                   {results.outputs.length}
                 </Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>
                   出力形式
                 </Typography>
               </Paper>
@@ -293,9 +455,30 @@ export const Results: React.FC<ResultsProps> = ({
       </Card>
 
       {/* タブナビゲーション */}
-      <Card>
+      <Card sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)' }}>
         <CardContent sx={{ p: 0 }}>
-          <Tabs value={currentTab} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs 
+            value={currentTab} 
+            onChange={handleTabChange} 
+            sx={{ 
+              borderBottom: 1, 
+              borderColor: 'divider',
+              '& .MuiTab-root': {
+                minHeight: 72,
+                textTransform: 'none',
+                fontWeight: 600,
+                fontSize: '0.95rem',
+                '&.Mui-selected': {
+                  color: 'primary.main',
+                  fontWeight: 700,
+                },
+              },
+              '& .MuiTabs-indicator': {
+                height: 3,
+                borderRadius: '3px 3px 0 0',
+              },
+            }}
+          >
             <Tab icon={<Summarize />} label="概要" />
             <Tab icon={<People />} label="参加者" />
             <Tab icon={<ListAlt />} label="重要ポイント" />
