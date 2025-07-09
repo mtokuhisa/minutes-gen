@@ -9,6 +9,11 @@ import {
   ProcessingStage,
   DEFAULT_PROCESSING_OPTIONS,
 } from '../types';
+import { 
+  InfographicConfig, 
+  InfographicOutput, 
+  InfographicGenerationProgress 
+} from '../types/infographic';
 import { OpenAIService } from '../services/openai';
 import { APIConfig, getAPIConfig, saveAPIConfig } from '../config/api';
 
@@ -27,6 +32,13 @@ interface UseAppStateReturn extends AppState {
   resetState: () => void;
   clearError: () => void;
   
+  // インフォグラフィック関連
+  setInfographicConfig: (config: InfographicConfig) => void;
+  setInfographicOutput: (output: InfographicOutput | null) => void;
+  setInfographicGenerating: (isGenerating: boolean) => void;
+  setInfographicProgress: (progress: InfographicGenerationProgress | null) => void;
+  setInfographicError: (error: string | null) => void;
+  
   // ユーティリティ関数
   canProceedToNextStep: () => boolean;
   getTotalSteps: () => number;
@@ -34,7 +46,7 @@ interface UseAppStateReturn extends AppState {
 }
 
 export const useAppState = (): UseAppStateReturn => {
-  // 基本状態
+  // 基本状態 - 順序を固定化
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [selectedFile, setSelectedFile] = useState<AudioFile | null>(null);
   const [processingOptions, setProcessingOptions] = useState<ProcessingOptions>(
@@ -45,11 +57,25 @@ export const useAppState = (): UseAppStateReturn => {
   const [error, setError] = useState<AppError | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [apiConfig, setApiConfigState] = useState<APIConfig>(getAPIConfig());
+  
+  // インフォグラフィック関連の状態 - 順序を固定化
+  const [infographic, setInfographic] = useState<{
+    config: InfographicConfig | null;
+    output: InfographicOutput | null;
+    isGenerating: boolean;
+    progress: InfographicGenerationProgress | null;
+    error: string | null;
+  }>({
+    config: null,
+    output: null,
+    isGenerating: false,
+    progress: null,
+    error: null,
+  });
 
-  // ステップ名の定義
-  const stepNames = ['アップロード', 'オプション設定', 'AI処理', '結果確認'];
-
+  // useMemoを最初に配置して順序を固定化
   const openAIService = useMemo(() => new OpenAIService(), []);
+  const stepNames = useMemo(() => ['アップロード', 'オプション設定', 'AI処理', '結果確認'], []);
 
   // 設定更新関数
   const setApiConfig = useCallback((newConfig: Partial<APIConfig>) => {
@@ -71,7 +97,10 @@ export const useAppState = (): UseAppStateReturn => {
       case 0: // アップロード
         return selectedFile !== null;
       case 1: // オプション設定
-        return processingOptions.outputFormats.length > 0;
+        // 出力形式が選択されていて、かつAPIキーが設定されている
+        return processingOptions.outputFormats.length > 0 && 
+               !!apiConfig.openaiApiKey && 
+               apiConfig.openaiApiKey.trim() !== '';
       case 2: // 処理中
         return false; // 処理中は進めない
       case 3: // 結果
@@ -79,7 +108,7 @@ export const useAppState = (): UseAppStateReturn => {
       default:
         return false;
     }
-  }, [currentStep, selectedFile, processingOptions]);
+  }, [currentStep, selectedFile, processingOptions, apiConfig]);
 
   // 処理開始
   const startProcessing = useCallback(async () => {
@@ -108,7 +137,7 @@ export const useAppState = (): UseAppStateReturn => {
 
     setIsProcessing(true);
     setError(null);
-    setCurrentStep(2); // 処理中ステップに移動
+    setCurrentStep(2);
 
     try {
       // 実際のAPI処理を使用
@@ -146,6 +175,27 @@ export const useAppState = (): UseAppStateReturn => {
     }
   }, [selectedFile, processingOptions, apiConfig, openAIService]);
 
+  // インフォグラフィック関連のアクション
+  const setInfographicConfig = useCallback((config: InfographicConfig) => {
+    setInfographic(prev => ({ ...prev, config }));
+  }, []);
+
+  const setInfographicOutput = useCallback((output: InfographicOutput | null) => {
+    setInfographic(prev => ({ ...prev, output }));
+  }, []);
+
+  const setInfographicGenerating = useCallback((isGenerating: boolean) => {
+    setInfographic(prev => ({ ...prev, isGenerating }));
+  }, []);
+
+  const setInfographicProgress = useCallback((progress: InfographicGenerationProgress | null) => {
+    setInfographic(prev => ({ ...prev, progress }));
+  }, []);
+
+  const setInfographicError = useCallback((error: string | null) => {
+    setInfographic(prev => ({ ...prev, error }));
+  }, []);
+
   // 状態リセット
   const resetState = useCallback(() => {
     setCurrentStep(0);
@@ -155,11 +205,18 @@ export const useAppState = (): UseAppStateReturn => {
     setResults(null);
     setError(null);
     setIsProcessing(false);
+    setInfographic({
+      config: null,
+      output: null,
+      isGenerating: false,
+      progress: null,
+      error: null,
+    });
   }, []);
 
   // ユーティリティ関数
-  const getTotalSteps = useCallback(() => stepNames.length, []);
-  const getStepName = useCallback((step: number) => stepNames[step] || '', []);
+  const getTotalSteps = useCallback(() => stepNames.length, [stepNames]);
+  const getStepName = useCallback((step: number) => stepNames[step] || '', [stepNames]);
 
   // エラーの自動クリア（10秒後）
   useEffect(() => {
@@ -182,6 +239,7 @@ export const useAppState = (): UseAppStateReturn => {
     error,
     isProcessing,
     apiConfig,
+    infographic,
 
     // アクション
     setCurrentStep,
@@ -191,6 +249,13 @@ export const useAppState = (): UseAppStateReturn => {
     startProcessing,
     resetState,
     clearError,
+
+    // インフォグラフィック関連
+    setInfographicConfig,
+    setInfographicOutput,
+    setInfographicGenerating,
+    setInfographicProgress,
+    setInfographicError,
 
     // ユーティリティ
     canProceedToNextStep,

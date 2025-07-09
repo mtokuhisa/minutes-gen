@@ -54,7 +54,8 @@ const PRESET_PROMPTS: Omit<PromptTemplate, 'id' | 'createdAt' | 'updatedAt'>[] =
 ・架空の参加者、表現や言葉を使用しない。​ 
 ・前後の文章から言葉を推測して保管した場合は、その旨を記載する。
 ・ToDoは以下のフォーマットに合わせること。​ [Todo内容] ([Todoの担当者名])​ 
-・見やすさを心がけ、マークダウン形式で表示してください。`,
+・見やすさを心がけ、マークダウン形式で表示してください。
+`,
     type: 'preset',
     category: 'general',
     tags: ['標準', '会議', 'ナレフル互換'],
@@ -198,32 +199,33 @@ const PRESET_PROMPTS: Omit<PromptTemplate, 'id' | 'createdAt' | 'updatedAt'>[] =
 ## 出力形式
 ### 1. セッション概要
 - テーマ: [ブレストのテーマ]
-- 参加者: [参加者一覧]
-- 実施日時: [日時]
-- ファシリテーター: [進行役]
+- 参加者: [参加者リスト]
+- 日時: [実施日時]
+- 進行: [ファシリテーター]
 
 ### 2. 出されたアイデア
-#### カテゴリ1: [分類名]
-- アイデア1: [内容] (提案者: [氏名])
-- アイデア2: [内容] (提案者: [氏名])
+#### カテゴリA: [分類名]
+- アイデア1: [内容] - 提案者: [氏名]
+- アイデア2: [内容] - 提案者: [氏名]
 
-#### カテゴリ2: [分類名]
-- アイデア3: [内容] (提案者: [氏名])
+#### カテゴリB: [分類名]
+- アイデア1: [内容] - 提案者: [氏名]
 
-### 3. 議論・発展したアイデア
-[特に議論が活発だったアイデア]
+### 3. 発展したアイデア
+[議論の中で発展・統合されたアイデア]
 
-### 4. 評価・選定結果
-[優先度や実現可能性による評価]
+### 4. 評価・選定
+[評価基準と選定されたアイデア]
 
-### 5. 次のアクション
-[選定されたアイデアの具体化方法]
+### 5. 次のステップ
+[具体化に向けた次のアクション]
 
 ## 記録基準
-- 全てのアイデアを漏れなく記録
-- 提案者を明記
+- 全てのアイデアを平等に記録
+- 発言者を明記
 - アイデアの発展過程を記録
-- 評価基準と結果を明確に記載`,
+- 評価コメントも含める
+- 創造性を重視した記録`,
     type: 'preset',
     category: 'brainstorm',
     tags: ['ブレスト', 'アイデア', '創造'],
@@ -232,7 +234,7 @@ const PRESET_PROMPTS: Omit<PromptTemplate, 'id' | 'createdAt' | 'updatedAt'>[] =
   {
     name: 'ポッドキャスト風音声',
     description: '2人の掛け合いによる自然なポッドキャスト風音声読み上げ',
-    content: `以下の議事録を、10分で聞ける2人のホストによる自然なポッドキャスト風の掛け合い形式に変換してください。
+    content: `以下の議事録を、2人のホストによる自然なポッドキャスト風の掛け合い形式に変換してください。
 
 【音声設定指示】
 - ホストA: 落ち着いた男性の声、ゆっくりとした話し方（alloy voice, speed: 0.8）
@@ -444,7 +446,7 @@ export const getPromptsByCategory = (store: PromptStore, category: PromptCategor
   return getAllPrompts(store).filter(prompt => prompt.category === category);
 };
 
-// プロンプト検索
+// プロンプトの検索
 export const searchPrompts = (store: PromptStore, query: string): PromptTemplate[] => {
   const lowercaseQuery = query.toLowerCase();
   return getAllPrompts(store).filter(prompt => 

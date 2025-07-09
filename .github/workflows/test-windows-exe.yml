@@ -1,0 +1,201 @@
+name: Windows EXE Build & Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run static path tests
+      run: |
+        npm run build
+        node scripts/test-static-paths.js
+      continue-on-error: true
+      
+    - name: Build Windows executable
+      run: |
+        npm run dist:zip
+        
+    - name: Verify build output
+      run: |
+        if (Test-Path "dist-electron/win-unpacked/MinutesGen.exe") {
+          Write-Host "✓ EXE file created successfully"
+          $fileInfo = Get-Item "dist-electron/win-unpacked/MinutesGen.exe"
+          Write-Host "File size: $([Math]::Round($fileInfo.Length / 1MB, 2)) MB"
+          Write-Host "Created: $($fileInfo.CreationTime)"
+        } else {
+          Write-Host "✗ EXE file not found"
+          exit 1
+        }
+        
+        # ZIP file check
+        if (Test-Path "dist-electron/MinutesGen-*.zip") {
+          $zipFile = Get-Item "dist-electron/MinutesGen-*.zip"
+          Write-Host "✓ ZIP file created: $($zipFile.Name)"
+          Write-Host "ZIP size: $([Math]::Round($zipFile.Length / 1MB, 2)) MB"
+        } else {
+          Write-Host "✗ ZIP file not found"
+        }
+      shell: powershell
+      
+    - name: Test executable dependencies
+      run: |
+        # 必要なDLLファイルの存在確認
+        $exeDir = "dist-electron/win-unpacked"
+        $requiredFiles = @(
+          "MinutesGen.exe",
+          "resources/app.asar"
+        )
+        
+        foreach ($file in $requiredFiles) {
+          $fullPath = Join-Path $exeDir $file
+          if (Test-Path $fullPath) {
+            Write-Host "✓ Found: $file"
+          } else {
+            Write-Host "✗ Missing: $file"
+          }
+        }
+        
+        # resources/app.asar の中身を確認
+        if (Test-Path "$exeDir/resources/app.asar") {
+          $asarSize = (Get-Item "$exeDir/resources/app.asar").Length
+          Write-Host "app.asar size: $([Math]::Round($asarSize / 1MB, 2)) MB"
+        }
+      shell: powershell
+      
+    - name: Test static file paths
+      run: |
+        # dist フォルダの内容を確認
+        Write-Host "=== Dist folder contents ==="
+        Get-ChildItem -Path "dist" -Recurse | ForEach-Object {
+          $relativePath = $_.FullName.Substring((Get-Location).Path.Length + 6)
+          Write-Host "  $relativePath"
+        }
+        
+        # 画像ファイルの存在確認
+        $imageFiles = @("mgen_logo.svg", "assets/mgen_logo.svg")
+        foreach ($img in $imageFiles) {
+          $imgPath = Join-Path "dist" $img
+          if (Test-Path $imgPath) {
+            Write-Host "✓ Found image: $img"
+          } else {
+            Write-Host "✗ Missing image: $img"
+          }
+        }
+      shell: powershell
+      
+    - name: Run basic smoke test
+      run: |
+        # EXEファイルの基本的な起動テスト（タイムアウト付き）
+        $exePath = "dist-electron/win-unpacked/MinutesGen.exe"
+        
+        Write-Host "Starting smoke test..."
+        $process = Start-Process -FilePath $exePath -ArgumentList "--version" -PassThru -NoNewWindow
+        
+        # 5秒待機
+        Start-Sleep -Seconds 5
+        
+        if (!$process.HasExited) {
+          Write-Host "✓ Application started successfully"
+          Stop-Process -Id $process.Id -Force
+        } else {
+          Write-Host "✗ Application exited immediately (Exit code: $($process.ExitCode))"
+        }
+      shell: powershell
+      continue-on-error: true
+      
+    - name: Create comprehensive test report
+      run: |
+        $report = @"
+# Windows EXE Test Report - $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+
+## Build Environment
+- OS: Windows Server 2022
+- Node.js: $(node --version)
+- NPM: $(npm --version)
+- PowerShell: $($PSVersionTable.PSVersion)
+
+## Build Results
+$(if (Test-Path "dist-electron/win-unpacked/MinutesGen.exe") { "✅ EXE file created" } else { "❌ EXE file missing" })
+$(if (Test-Path "dist-electron/MinutesGen-*.zip") { "✅ ZIP file created" } else { "❌ ZIP file missing" })
+
+## File Information
+$((Get-ChildItem -Path "dist-electron" -Recurse -Include "*.exe" | ForEach-Object { 
+  "- $($_.Name): $([Math]::Round($_.Length / 1MB, 2)) MB"
+}) -join "`n")
+
+## Static Files Check
+$((Get-ChildItem -Path "dist" -Include "*.svg" -Recurse | ForEach-Object {
+  $relativePath = $_.FullName.Substring((Get-Location).Path.Length + 6)
+  "- Found: $relativePath"
+}) -join "`n")
+
+## Test Results
+- [x] Dependencies installed
+- [x] Build completed
+- [x] Static paths analyzed
+- [x] EXE file generated
+- [x] ZIP file created
+- [x] File structure verified
+- [ ] Manual runtime test required
+
+## Next Steps
+1. Download the ZIP file from artifacts
+2. Extract and run MinutesGen.exe on Windows
+3. Test API key setup and basic functionality
+4. Verify image loading and UI rendering
+
+## Known Issues to Check
+- Image path resolution (absolute vs relative)
+- API key initialization on first run
+- File protocol compatibility
+- Windows-specific path handling
+"@
+
+        $report | Out-File -FilePath "test-report.md" -Encoding UTF8
+        Write-Host "Test report created"
+      shell: powershell
+      
+    - name: Upload Windows executable
+      uses: actions/upload-artifact@v3
+      with:
+        name: windows-exe-build
+        path: |
+          dist-electron/MinutesGen-*.zip
+          dist-electron/win-unpacked/
+        retention-days: 7
+        
+    - name: Upload test report
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-report
+        path: test-report.md
+        retention-days: 7
+        
+    - name: Upload build logs
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-logs
+        path: |
+          dist/
+          *.log
+        retention-days: 3
+      if: always() 

@@ -6,6 +6,7 @@ import axios, { AxiosInstance } from 'axios';
 import { getValidatedAPIConfig } from '../config/api';
 import { AudioFile, ProcessingOptions, MinutesData, ProcessingProgress } from '../types';
 import { audioProcessor } from './audioProcessor';
+import { initializePromptStore, getActivePrompt, getAllPrompts } from './promptStore';
 // WebCodecsProcessor はメモリ消費の問題があるため使用を停止
 // import { WebCodecsProcessor } from './webCodecsProcessor';
 
@@ -217,7 +218,7 @@ export class OpenAIService {
       // ffmpeg.wasmで音声ファイルを適切なセグメントに分割
       const segments = await audioProcessor.processLargeAudioFile(file, 600, onProgress);
       
-      let transcript = '';
+      const transcriptSegments: string[] = [];
       
       // 各セグメントを順次文字起こし
       for (let i = 0; i < segments.length; i++) {
@@ -253,8 +254,14 @@ export class OpenAIService {
         // Content-Type ヘッダーはブラウザに任せる（boundary を正しく付与させる）
         const response = await this.api.post('/audio/transcriptions', formData);
 
-        transcript += (response.data.text as string) + '\n';
+        const segmentText = (response.data.text as string).trim();
+        if (segmentText) {
+          transcriptSegments.push(segmentText);
+        }
       }
+
+      // 文字起こし結果を適切にマージ
+      const mergedTranscript = this.mergeTranscriptSegments(transcriptSegments);
 
       // 進捗更新 (完了)
       onProgress?.({
@@ -266,17 +273,60 @@ export class OpenAIService {
           id: Date.now().toString() + '_segment_done',
           timestamp: new Date(),
           level: 'success',
-          message: '全ての音声セグメントのAI文字起こしが完了しました',
+          message: `全ての音声セグメント(${segments.length}個)のAI文字起こしが完了しました。最終的な文字数: ${mergedTranscript.length}文字`,
         }],
         startedAt: new Date(),
       });
 
-      return transcript.trim();
+      return mergedTranscript;
 
     } catch (error) {
       console.error('ffmpeg.wasm音声文字起こしエラー:', error);
       throw new Error('音声の文字起こしに失敗しました');
     }
+  }
+
+  /**
+   * 分割された文字起こしセグメントを適切にマージする
+   */
+  private mergeTranscriptSegments(segments: string[]): string {
+    if (segments.length === 0) return '';
+    if (segments.length === 1) return segments[0];
+
+    const mergedSegments: string[] = [];
+    
+    for (let i = 0; i < segments.length; i++) {
+      let currentSegment = segments[i];
+      
+      // 前のセグメントとの連続性をチェック
+      if (i > 0) {
+        const previousSegment = mergedSegments[mergedSegments.length - 1];
+        
+        // 前のセグメントが文の途中で終わっているかチェック
+        const lastChar = previousSegment.slice(-1);
+        const firstChar = currentSegment.charAt(0);
+        
+        // 文の境界でない場合は適切に連結
+        if (lastChar && !['。', '！', '？', '．', '.', '!', '?', '\n'].includes(lastChar)) {
+          // 小文字で始まる場合や、明らかに文の続きの場合は空白なしで連結
+          if (firstChar === firstChar.toLowerCase() || 
+              ['が', 'は', 'を', 'に', 'で', 'から', 'まで', 'と', 'も', 'の', 'や', 'け', 'ど', 'ば', 'て', 'で', 'な', 'ない', 'ます', 'です', 'だ', 'である', 'ですが', 'ので', 'から', 'けれど', 'しかし', 'ただし', 'そして', 'また', 'さらに', 'ただ', 'しかし', 'ところが', 'ところで', 'ちなみに', 'つまり', 'すなわち', 'いわゆる', 'ようは', 'つまり', 'というのは', 'ということは', 'ということで', 'ということから', 'ということに', 'ということも', 'ということが', 'ということを', 'ということは', 'ということで', 'ということから', 'ということに', 'ということも', 'ということが', 'ということを'].some(particle => currentSegment.startsWith(particle))) {
+            // 前のセグメントの最後の文字起こしを更新
+            mergedSegments[mergedSegments.length - 1] = previousSegment + currentSegment;
+            continue;
+          } else {
+            // 新しい文の開始の場合は適切な区切りを追加
+            if (!/\s$/.test(previousSegment)) {
+              mergedSegments[mergedSegments.length - 1] = previousSegment + ' ';
+            }
+          }
+        }
+      }
+      
+      mergedSegments.push(currentSegment);
+    }
+    
+    return mergedSegments.join('\n\n');
   }
 
   /**
@@ -340,7 +390,7 @@ export class OpenAIService {
 
       // 結果を解析して構造化
       const generatedContent = response.data.choices[0].message.content;
-      return this.parseGeneratedMinutes(generatedContent, options);
+      return this.parseGeneratedMinutes(generatedContent, options, transcription);
 
     } catch (error) {
       console.error('議事録生成エラー:', error);
@@ -352,61 +402,86 @@ export class OpenAIService {
    * 議事録生成プロンプトを構築
    */
   private buildMinutesPrompt(transcription: string, options: ProcessingOptions): string {
-    const basePrompt = `
+    // プロンプトストアから選択されたプロンプトを取得
+    const promptStore = initializePromptStore();
+    let selectedPrompt = null;
+    
+    // 選択されたプロンプトを取得
+    if (options.selectedPrompt) {
+      const allPrompts = getAllPrompts(promptStore);
+      selectedPrompt = allPrompts.find(p => p.id === options.selectedPrompt);
+    }
+    
+    // 選択されたプロンプトがない場合はアクティブプロンプトを取得
+    if (!selectedPrompt) {
+      selectedPrompt = getActivePrompt(promptStore);
+    }
+    
+    // プロンプトが見つからない場合はデフォルトプロンプトを使用
+    const promptContent = selectedPrompt?.content || `
 以下の会議の文字起こしテキストから、構造化された議事録を作成してください。
 
+次の[#制約条件]に従って、以下の[#形式]で要約してください。
+#形式​
+・会議のタイトル 
+​・会議参加者
+・要約
+・詳細（文意を変えずに読みやすく、詳細に記載する）
+・決定事項​ 
+・ToDo​ 
+#制約条件 ​
+・**必ず全ての内容を参照してから、議事録を作成してください。**
+・複数人で同じマイクを利用している場合があるので、発言数が多い参加者は" 他"を末尾につける。
+・決定事項、Todoは重要なキーワードを取りこぼさない。 ​
+・期日が明確に設定されている場合は、省略せず文章中に記載すること。
+ ​・文章の意味を変更しない。名詞は言い換え・変換しない。 ​
+・架空の参加者、表現や言葉を使用しない。​ 
+・前後の文章から言葉を推測して保管した場合は、その旨を記載する。
+・ToDoは以下のフォーマットに合わせること。​ [Todo内容] ([Todoの担当者名])​ 
+・見やすさを心がけ、マークダウン形式で表示してください。`;
+
+    // プロンプトに文字起こしテキストを挿入
+    const finalPrompt = `${promptContent}
+
 【文字起こしテキスト】
-${transcription}
-
-【要求事項】
-- 日本語で出力してください
-- 以下の形式で出力してください：
-
-## 会議概要
-- 日時: [推定される日時]
-- 議題: [主要な議題]
-- 参加者: [発言者を推定]
-
-## 重要なポイント
-1. [重要な内容1]
-2. [重要な内容2]
-3. [重要な内容3]
-
-## 決定事項
-- [決定された内容]
-
-## アクション項目
-- [担当者]: [タスク内容] ([期限])
-
-## 次回までのTO DO
-- [項目1]
-- [項目2]
-
-## 補足・その他
-- [その他の重要な情報]
-`;
+${transcription}`;
 
     // カスタムプロンプトがある場合は追加
     if (options.customPrompt) {
-      return `${basePrompt}\n\n【追加要求】\n${options.customPrompt}`;
+      return `${finalPrompt}\n\n【追加要求】\n${options.customPrompt}`;
     }
 
-    return basePrompt;
+    return finalPrompt;
   }
 
   /**
    * 生成された議事録を解析して構造化データに変換
    */
-  private parseGeneratedMinutes(content: string, options: ProcessingOptions): MinutesData {
+  private parseGeneratedMinutes(content: string, options: ProcessingOptions, transcription?: string): MinutesData {
     // 現在時刻を取得
     const now = new Date();
+
+    // 文字起こしデータを適切に構造化
+    let transcriptionSegments: any[] = [];
+    if (transcription) {
+      // 文字起こしテキストを適切に分割して構造化
+      const sentences = this.splitTranscriptionIntoSentences(transcription);
+      transcriptionSegments = sentences.map((sentence, index) => ({
+        id: (index + 1).toString(),
+        startTime: index * 30, // 30秒間隔で仮の時間設定
+        endTime: (index + 1) * 30,
+        speakerId: null,
+        text: sentence.trim(),
+        confidence: 0.95,
+      }));
+    }
 
     // 基本的な議事録データを作成
     const minutesData: MinutesData = {
       id: Date.now().toString(),
       title: '生成された議事録',
       date: now,
-      duration: 0,
+      duration: transcriptionSegments.length * 30, // 総時間を計算
       participants: [
         {
           id: '1',
@@ -434,16 +509,7 @@ ${transcription}
           timestamp: 0,
         },
       ],
-      transcription: [
-        {
-          id: '1',
-          startTime: 0,
-          endTime: 0,
-          speakerId: '1',
-          text: '生成された文字起こし',
-          confidence: 0.95,
-        },
-      ],
+      transcription: transcriptionSegments,
       outputs: options.outputFormats.map(format => ({
         format,
         content: content,
@@ -461,6 +527,54 @@ ${transcription}
     };
 
     return minutesData;
+  }
+
+  /**
+   * 文字起こしテキストを文章単位で分割
+   */
+  private splitTranscriptionIntoSentences(transcription: string): string[] {
+    if (!transcription || typeof transcription !== 'string') {
+      return [];
+    }
+
+    // 改行や句読点で文章を分割
+    const sentences = transcription
+      // 1. 文末（。！？）の後で分割
+      .split(/([。！？])\s*/)
+      .reduce((acc: string[], current: string, index: number, array: string[]) => {
+        if (index % 2 === 0) {
+          // 偶数インデックス：文章部分
+          const sentence = current.trim();
+          if (sentence) {
+            // 次の要素が句読点の場合は結合
+            const punctuation = array[index + 1];
+            acc.push(sentence + (punctuation || ''));
+          }
+        }
+        return acc;
+      }, [])
+      // 2. 長い文章をさらに分割（読点で分割）
+      .flatMap(sentence => {
+        if (sentence.length > 100) {
+          return sentence.split(/([、])\s*/).reduce((acc: string[], current: string, index: number, array: string[]) => {
+            if (index % 2 === 0) {
+              const part = current.trim();
+              if (part) {
+                const comma = array[index + 1];
+                acc.push(part + (comma || ''));
+              }
+            }
+            return acc;
+          }, []);
+        }
+        return [sentence];
+      })
+      // 3. 空文字列を除去
+      .filter(sentence => sentence.trim().length > 0)
+      // 4. 最低限の長さを確保
+      .filter(sentence => sentence.trim().length > 5);
+
+    return sentences.length > 0 ? sentences : [transcription];
   }
 
   /**

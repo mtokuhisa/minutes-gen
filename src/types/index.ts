@@ -151,6 +151,13 @@ export interface AppState {
   results: MinutesData | null;
   error: AppError | null;
   isProcessing: boolean;
+  infographic?: {
+    config: any; // InfographicConfig
+    output: any; // InfographicOutput
+    isGenerating: boolean;
+    progress: any; // InfographicGenerationProgress
+    error: string | null;
+  };
 }
 
 export interface AppError {
