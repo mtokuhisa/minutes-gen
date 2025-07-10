@@ -1,17 +1,50 @@
 // ===========================================
-// MinutesGen v1.0 - ファイル処理サービス
+// MinutesGen v1.0 - ファイル処理サービス（認証統合）
 // ===========================================
 
 import { FileProcessingResult } from '../types/infographic';
-import { getValidatedAPIConfig } from '../config/api';
+import { AuthService } from './authService';
 
 export class FileProcessor {
+  private authService: AuthService;
+
+  constructor() {
+    this.authService = AuthService.getInstance();
+  }
+
+  /**
+   * 認証状態を確認
+   */
+  private async ensureAuthenticated(): Promise<string> {
+    if (!this.authService.isAuthenticated()) {
+      throw new Error('認証が必要です。初回セットアップを完了してください。');
+    }
+
+    const apiKey = await this.authService.getApiKey();
+    if (!apiKey) {
+      throw new Error('API KEYが取得できませんでした。認証を確認してください。');
+    }
+
+    return apiKey;
+  }
+
+  /**
+   * 認証エラーを処理
+   */
+  private handleAuthError(response: Response): void {
+    if (response.status === 401) {
+      this.authService.clearApiKeyFromMemory();
+      throw new Error('認証に失敗しました。再度ログインしてください。');
+    }
+  }
+
   /**
    * PDFファイルの処理
    */
   async processPDF(file: File): Promise<FileProcessingResult> {
     try {
-      const config = getValidatedAPIConfig();
+      const apiKey = await this.ensureAuthenticated();
+      
       const formData = new FormData();
       formData.append('file', file);
       formData.append('model', 'gpt-4o');
@@ -21,12 +54,13 @@ export class FileProcessor {
       const response = await fetch('https://api.openai.com/v1/files', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${config.openaiApiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
         },
         body: formData,
       });
 
       if (!response.ok) {
+        this.handleAuthError(response);
         throw new Error(`PDF処理エラー: ${response.statusText}`);
       }
 
@@ -60,7 +94,8 @@ export class FileProcessor {
    */
   async processOfficeFile(file: File): Promise<FileProcessingResult> {
     try {
-      const config = getValidatedAPIConfig();
+      const apiKey = await this.ensureAuthenticated();
+      
       const formData = new FormData();
       formData.append('file', file);
       formData.append('model', 'gpt-4o');
@@ -69,12 +104,13 @@ export class FileProcessor {
       const response = await fetch('https://api.openai.com/v1/files', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${config.openaiApiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
         },
         body: formData,
       });
 
       if (!response.ok) {
+        this.handleAuthError(response);
         throw new Error(`Office文書処理エラー: ${response.statusText}`);
       }
 
@@ -108,7 +144,7 @@ export class FileProcessor {
    */
   async processImage(file: File): Promise<FileProcessingResult> {
     try {
-      const config = getValidatedAPIConfig();
+      const apiKey = await this.ensureAuthenticated();
       
       // 画像をBase64に変換
       const base64Image = await this.fileToBase64(file);
@@ -116,7 +152,7 @@ export class FileProcessor {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${config.openaiApiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -143,6 +179,7 @@ export class FileProcessor {
       });
 
       if (!response.ok) {
+        this.handleAuthError(response);
         throw new Error(`画像処理エラー: ${response.statusText}`);
       }
 

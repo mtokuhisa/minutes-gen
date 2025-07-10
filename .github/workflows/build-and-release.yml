@@ -1,0 +1,161 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run type check
+        run: npm run type-check
+        
+      - name: Run linting
+        run: npm run lint
+        
+      - name: Run tests
+        run: npm test
+        
+      - name: Build React app
+        run: npm run build:react
+
+  build-windows:
+    needs: test
+    runs-on: windows-latest
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build application
+        run: npm run build
+        
+              - name: Build Windows executable (portable)
+          run: npm run dist:portable
+          env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            
+        - name: Build Windows directory for ZIP
+          run: npm run build && npx electron-builder --win dir --ia32
+          env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+              - name: Create ZIP archive
+          run: |
+            cd dist-electron
+            if (Test-Path "win-unpacked") {
+              Compress-Archive -Path "win-unpacked/*" -DestinationPath "MinutesGen-v${{ github.ref_name }}-portable-ia32.zip"
+            } else {
+              Write-Host "win-unpacked directory not found"
+              Get-ChildItem -Recurse
+            }
+          shell: powershell
+        
+      - name: Upload Windows Portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-portable
+          path: dist-electron/*.exe
+          
+      - name: Upload Windows ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: dist-electron/*.zip
+          
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            dist-electron/
+            !dist-electron/node_modules/
+
+  release:
+    needs: build-windows
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: MinutesGen ${{ github.ref_name }}
+          body: |
+            ## MinutesGen ${{ github.ref_name }}
+            
+            ### 🎯 新機能・改善
+            - AI議事録生成機能の改善
+            - ポッドキャスト風音声生成機能
+            - Word文書（docx）対応
+            - 文字エンコーディング対応強化
+            
+            ### 📦 ダウンロード
+            - **MinutesGen-v${{ github.ref_name }}-portable.exe**: 単体実行ファイル（推奨）
+            - **MinutesGen-v${{ github.ref_name }}-portable-ia32.zip**: ポータブル版（ZIP形式）
+            
+            ### 🔧 システム要件
+            - Windows 10/11 (32-bit/64-bit)
+            - メモリ: 4GB以上推奨
+            - ディスク容量: 500MB以上
+            
+            ### 📋 使用方法
+            1. 実行ファイルをダウンロード
+            2. 初回起動時にAPI KEYを設定
+            3. 音声・動画ファイルをアップロード
+            4. AI処理で議事録を自動生成
+            
+            詳細な使用方法は[README.md](https://github.com/${{ github.repository }}/blob/main/README.md)をご確認ください。
+          draft: false
+          prerelease: false
+          
+      - name: Upload Release Assets
+        run: |
+          for file in artifacts/windows-portable/*.exe; do
+            if [ -f "$file" ]; then
+              gh release upload ${{ github.ref_name }} "$file"
+            fi
+          done
+          
+          for file in artifacts/windows-zip/*.zip; do
+            if [ -f "$file" ]; then
+              gh release upload ${{ github.ref_name }} "$file"
+            fi
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

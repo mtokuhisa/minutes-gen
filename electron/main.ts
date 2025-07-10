@@ -1,5 +1,7 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import path from 'path';
+import fs from 'fs';
+import { setupFileHandler } from './fileHandler';
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -7,6 +9,8 @@ function createWindow() {
     height: 800,
     webPreferences: {
       contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.js'),
     },
   });
 
@@ -25,7 +29,29 @@ function createWindow() {
   });
 }
 
+// IPCハンドラーを設定
+ipcMain.handle('get-corporate-config', () => {
+  try {
+    const configPath = path.join(process.cwd(), 'corporate-config.json');
+    if (fs.existsSync(configPath)) {
+      const configData = fs.readFileSync(configPath, 'utf8');
+      return JSON.parse(configData);
+    }
+    return null;
+  } catch (error) {
+    console.warn('企業設定ファイルの読み込みに失敗:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('get-app-path', () => {
+  return process.cwd();
+});
+
 app.whenReady().then(() => {
+  // ファイルハンドラーを初期化
+  setupFileHandler();
+  
   createWindow();
 
   app.on('activate', () => {

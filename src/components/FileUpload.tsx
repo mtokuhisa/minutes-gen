@@ -16,6 +16,7 @@ import {
   ListItemSecondaryAction,
   Fade,
   Zoom,
+  Divider,
 } from '@mui/material';
 import {
   CloudUpload,
@@ -26,8 +27,16 @@ import {
   PlayArrow,
   Pause,
   VolumeUp,
+  Description,
+  PictureAsPdf,
+  TextSnippet,
+  Warning,
+  Error as ErrorIcon,
+  InsertDriveFile,
+  TextFields,
 } from '@mui/icons-material';
 import { AudioFile, FileValidation } from '../types';
+import mammoth from 'mammoth';
 
 // ===========================================
 // MinutesGen v1.0 - ファイルアップロード
@@ -44,7 +53,12 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   selectedFile,
   onFileSelect,
   maxFileSize = 3 * 1024 * 1024 * 1024, // 3GB
-  acceptedFormats = ['mp3', 'wav', 'm4a', 'flac', 'aac', 'mp4', 'mov', 'avi'],
+  acceptedFormats = [
+    // 音声・動画ファイル
+    'mp3', 'wav', 'm4a', 'flac', 'aac', 'mp4', 'mov', 'avi',
+    // 文書ファイル
+    'docx', 'doc', 'txt', 'md', 'pdf'
+  ],
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -54,10 +68,27 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
+  // ファイルタイプの判定
+  const getFileType = (fileName: string): 'audio' | 'video' | 'document' => {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    if (!extension) return 'audio';
+
+    const audioFormats = ['mp3', 'wav', 'm4a', 'flac', 'aac'];
+    const videoFormats = ['mp4', 'mov', 'avi', 'mkv'];
+    const documentFormats = ['docx', 'doc', 'txt', 'md', 'pdf'];
+
+    if (audioFormats.includes(extension)) return 'audio';
+    if (videoFormats.includes(extension)) return 'video';
+    if (documentFormats.includes(extension)) return 'document';
+    
+    return 'audio'; // デフォルト
+  };
+
   // ファイル検証
   const validateFile = (file: File): FileValidation => {
     const errors: string[] = [];
     const warnings: string[] = [];
+    const fileType = getFileType(file.name);
 
     // ファイルサイズチェック
     if (file.size > maxFileSize) {
@@ -68,8 +99,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     const extension = file.name.split('.').pop()?.toLowerCase();
     if (!extension || !acceptedFormats.includes(extension)) {
       errors.push(`サポートされていないファイル形式です（対応形式: ${acceptedFormats.join(', ')}）`);
-    } else {
-      // ブラウザ再生可否をチェック（コーデック不一致対策）
+    } else if (fileType === 'audio' || fileType === 'video') {
+      // 音声・動画ファイルのみブラウザ再生可否をチェック
       const mime = file.type || `audio/${extension}`;
       const canPlay = document.createElement('audio').canPlayType(mime);
       if (canPlay === '') {
@@ -87,16 +118,21 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       warnings.push('大きなファイルは処理に時間がかかる場合があります');
     }
 
-    // 大容量ファイル処理の説明
-    if (file.size > 20 * 1024 * 1024) { // 20MB
-      warnings.push('このアプリが自動的に音声ファイルを適切なセグメントに分割します');
-      warnings.push('初回処理時は音声処理ライブラリのダウンロードに時間がかかる場合があります');
-      warnings.push('手動分割は不要です - アプリが全て自動処理します');
-    }
+    // 文書ファイルの場合の説明
+    if (fileType === 'document') {
+      warnings.push('文書ファイルは文字起こしをスキップして直接議事録生成を行います');
+    } else {
+      // 音声・動画ファイルの場合の説明
+      if (file.size > 20 * 1024 * 1024) { // 20MB
+        warnings.push('このアプリが自動的に音声ファイルを適切なセグメントに分割します');
+        warnings.push('初回処理時は音声処理ライブラリのダウンロードに時間がかかる場合があります');
+        warnings.push('手動分割は不要です - アプリが全て自動処理します');
+      }
 
-    // 25MB制限の警告
-    if (file.size > 25 * 1024 * 1024) { // 25MB
-      warnings.push('OpenAI APIの制限により、25MBを超えるファイルは分割処理が必須です');
+      // 25MB制限の警告
+      if (file.size > 25 * 1024 * 1024) { // 25MB
+        warnings.push('OpenAI APIの制限により、25MBを超えるファイルは分割処理が必須です');
+      }
     }
 
     return {
@@ -115,70 +151,143 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   };
 
   /**
-   * ブラウザの AudioContext で実際に decode できるか確認する。
-   *  
-   *  - 先頭 1MB だけ読み込み、decodeAudioData に渡す
-   *  - 5 秒以内にデコード出来なければ非対応と判定
+   * ファイルの妥当性を確認する（Electron環境対応）
+   * 文書ファイルの場合はスキップ。
    */
   const checkAudioDecodable = async (file: File): Promise<boolean> => {
+    const fileType = getFileType(file.name);
+    if (fileType === 'document') return true; // 文書ファイルはスキップ
     if (!file.type.startsWith('audio/')) return true; // video などはスキップ
 
-    /*
-     * NotReadableError 対策:
-     *  - file.slice().arrayBuffer() が稀に権限問題で失敗するケースがある
-     *  - try/catch で捕捉し false を返して上位でユーザーに警告を出す
-     */
-    let arrayBuffer: ArrayBuffer;
-    try {
-      arrayBuffer = await file.slice(0, 1024 * 1024).arrayBuffer();
-    } catch (err) {
-      console.error('File read error during decodability check:', err);
-      return false;
+    // Electron環境では AudioContext の使用を避ける
+    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+      // Electron環境では基本的な拡張子チェックのみ
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      const supportedFormats = ['mp3', 'wav', 'm4a', 'flac', 'aac', 'mp4', 'mov', 'avi'];
+      return extension ? supportedFormats.includes(extension) : false;
     }
 
-    const AudioCtxClass = (window.AudioContext || (window as any).webkitAudioContext) as {
-      new (): AudioContext;
-    };
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    const audioCtx = new AudioCtxClass();
+    // ブラウザ環境でのみ AudioContext を使用
+    try {
+      const arrayBuffer = await file.slice(0, 1024 * 1024).arrayBuffer();
+      
+      const AudioCtxClass = (window.AudioContext || (window as any).webkitAudioContext) as {
+        new (): AudioContext;
+      };
+      
+      if (!AudioCtxClass) {
+        console.warn('AudioContext not available');
+        return true; // AudioContext が利用できない場合は通す
+      }
 
-    return new Promise<boolean>((resolve) => {
-      const timer = setTimeout(() => {
-        console.warn('decodeAudioData timeout (5s)');
-        resolve(false);
-      }, 5000);
+      const audioCtx = new AudioCtxClass();
 
-      audioCtx.decodeAudioData(
-        arrayBuffer.slice(0),
-        () => {
-          clearTimeout(timer);
+      return new Promise<boolean>((resolve) => {
+        const timer = setTimeout(() => {
+          console.warn('decodeAudioData timeout (5s)');
           audioCtx.close();
-          resolve(true);
-        },
-        (err) => {
-          console.warn('decodeAudioData failed:', err);
-          clearTimeout(timer);
-          audioCtx.close();
-          resolve(false);
+          resolve(true); // タイムアウトの場合は通す
+        }, 5000);
+
+        audioCtx.decodeAudioData(
+          arrayBuffer.slice(0),
+          () => {
+            clearTimeout(timer);
+            audioCtx.close();
+            resolve(true);
+          },
+          (err) => {
+            console.warn('decodeAudioData failed:', err);
+            clearTimeout(timer);
+            audioCtx.close();
+            resolve(true); // デコードに失敗しても通す（後続処理で判定）
+          }
+        );
+      });
+    } catch (err) {
+      console.error('File read error during decodability check:', err);
+      return true; // エラーの場合は通す
+    }
+  };
+
+  /**
+   * 文書ファイルからテキストを抽出
+   */
+  const extractTextFromDocument = async (file: File): Promise<string> => {
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    
+    try {
+      if (extension === 'txt') {
+        // テキストファイルの場合、UTF-8として読み込み
+        let text = '';
+        try {
+          text = await file.text();
+          if (!text || text.trim().length === 0) {
+            throw new Error('Empty file');
+          }
+        } catch (error) {
+          // UTF-8で読み込めない場合は、ArrayBufferから手動でデコード
+          try {
+            const buffer = await file.arrayBuffer();
+            const decoder = new TextDecoder('utf-8');
+            text = decoder.decode(buffer);
+          } catch (decodeError) {
+            text = '※テキストファイルの内容を読み取れませんでした。UTF-8形式で保存してください。';
+          }
         }
-      );
-    });
+        
+        return text || '※テキストファイルの内容を読み取れませんでした。';
+      } else if (extension === 'md') {
+        // Markdownファイルの場合
+        const text = await file.text();
+        return text || '※Markdownファイルの内容を読み取れませんでした。';
+      } else if (extension === 'pdf') {
+        // PDFファイルの場合（基本的なテキスト抽出のみ）
+        const text = await file.text();
+        return text || '※PDFファイルからのテキスト抽出に失敗しました。テキスト形式での再提出をお勧めします。';
+      } else if (extension === 'docx' || extension === 'doc') {
+        // DOCXファイルの場合
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        return result.value;
+      } else {
+        throw new Error('サポートされていない文書形式です');
+      }
+    } catch (error) {
+      console.error('文書ファイル処理エラー:', error);
+      return `※ファイル「${file.name}」の処理中にエラーが発生しました。ファイル形式を確認してください。`;
+    }
   };
 
   // ファイル処理
   const processFile = useCallback(async (file: File) => {
-    const validation = validateFile(file);
+    console.log('processFile開始:', file.name, file.size, file.type);
     
-    if (!validation.isValid) {
-      setValidationErrors(validation.errors.map(e => e.message));
-      return;
-    }
+    try {
+      const validation = validateFile(file);
+      const fileType = getFileType(file.name);
+      
+      if (!validation.isValid) {
+        setValidationErrors(validation.errors.map(e => e.message));
+        return;
+      }
 
-    // 追加: 実デコード判定
-    const decodable = await checkAudioDecodable(file);
-    if (!decodable) {
-      setValidationErrors(['ブラウザがこの音声コーデックをデコードできません。別形式（mp3 / wav など）に変換してください']);
+      // 音声・動画ファイルの場合のみデコード判定
+      if (fileType !== 'document') {
+        try {
+          const decodable = await checkAudioDecodable(file);
+          if (!decodable) {
+            setValidationErrors(['ブラウザがこの音声コーデックをデコードできません。別形式（mp3 / wav など）に変換してください']);
+            return;
+          }
+        } catch (error) {
+          console.error('デコード確認エラー:', error);
+          // デコード確認でエラーが発生してもファイル処理は続行
+        }
+      }
+    } catch (error) {
+      console.error('ファイル検証エラー:', error);
+      setValidationErrors(['ファイルの検証中にエラーが発生しました']);
       return;
     }
 
@@ -187,6 +296,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     setUploadProgress(0);
 
     try {
+      const fileType = getFileType(file.name);
+      
       // アップロード進捗のシミュレーション
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
@@ -200,14 +311,31 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
       // ファイル情報の取得
       let blobUrl: string | null = null;
-      try {
-        blobUrl = URL.createObjectURL(file);
-      } catch (error) {
-        console.error('Failed to create blob URL for file:', error);
-        throw new Error('ファイルの読み込みに失敗しました');
-      }
+      let documentText: string | null = null;
+      let duration = 0;
 
-      const duration = await getAudioDuration(file);
+      if (fileType === 'document') {
+        // 文書ファイルの場合はテキスト抽出
+        documentText = await extractTextFromDocument(file);
+        duration = 0; // 文書ファイルは時間情報なし
+      } else {
+        // 音声・動画ファイルの場合
+        try {
+          // Electron環境では安全にファイルパスを生成
+          if (typeof window !== 'undefined' && (window as any).electronAPI) {
+            // Electron環境では file:// プロトコルを使用しない
+            blobUrl = `file-${file.name}-${Date.now()}`;
+          } else {
+            blobUrl = URL.createObjectURL(file);
+          }
+          duration = await getAudioDuration(file);
+        } catch (error) {
+          console.error('Failed to process file:', error);
+          // エラーが発生してもファイル処理は続行
+          blobUrl = `file-${file.name}-${Date.now()}`;
+          duration = 0;
+        }
+      }
       
       const audioFile: AudioFile = {
         id: `${file.name}-${file.size}-${file.lastModified}`,
@@ -215,7 +343,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         size: file.size,
         duration: duration,
         format: file.name.split('.').pop()?.toLowerCase() || 'unknown',
-        path: blobUrl,
+        path: blobUrl || '',
         rawFile: file,
         uploadedAt: new Date(),
         metadata: {
@@ -223,11 +351,15 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           sampleRate: 0, // Not available directly in JS
           channels: 0, // Not available directly in JS
           codec: file.type.split('/')[1] || 'unknown',
+          fileType: fileType,
+          documentText: documentText || undefined,
         },
       };
 
       console.log(
-        '[DEBUG] FileUpload.tsx: processFile - audioFile object created. rawFile exists:',
+        '[DEBUG] FileUpload.tsx: processFile - audioFile object created. fileType:',
+        fileType,
+        'rawFile exists:',
         !!audioFile.rawFile
       );
       onFileSelect(audioFile);
@@ -243,6 +375,13 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   // 音声の長さを取得（最終改善版）
   const getAudioDuration = (file: File): Promise<number> => {
     return new Promise((resolve) => {
+      // 文書ファイルの場合は0を返す
+      const fileType = getFileType(file.name);
+      if (fileType === 'document') {
+        resolve(0);
+        return;
+      }
+
       // 音声ファイル以外は0を返す
       if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|wav|m4a|flac|aac)$/i)) {
         resolve(0);
@@ -327,6 +466,13 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       }, 30000);
       
       try {
+        // Electron環境では音声時間の取得をスキップ
+        if (typeof window !== 'undefined' && (window as any).electronAPI) {
+          console.log('Electron環境: 音声時間の取得をスキップ');
+          resolveOnce(0);
+          return;
+        }
+        
         blobUrl = URL.createObjectURL(file);
         audio.preload = 'metadata';
         audio.muted = true;
@@ -359,9 +505,22 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     e.preventDefault();
     setIsDragging(false);
     
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
-      processFile(files[0]);
+    try {
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length > 0) {
+        console.log('ファイルドロップ処理開始:', files[0].name);
+        
+        // Electron環境での追加チェック
+        if (window.electronAPI) {
+          console.log('Electron環境でのファイルドロップ処理');
+          // Electron環境では特別な処理は不要、通常通り処理
+        }
+        
+        processFile(files[0]);
+      }
+    } catch (error) {
+      console.error('ファイルドロップ処理エラー:', error);
+      setValidationErrors(['ファイルのドロップ処理中にエラーが発生しました。ファイル選択ボタンをお試しください。']);
     }
   }, [processFile]);
 
@@ -391,7 +550,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   // ファイル削除
   const handleFileRemove = useCallback(() => {
     if (selectedFile) {
-      URL.revokeObjectURL(selectedFile.path);
+      if (selectedFile.path) {
+        URL.revokeObjectURL(selectedFile.path);
+      }
       onFileSelect(null);
       setValidationErrors([]);
     }
@@ -408,6 +569,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
   // 時間フォーマット
   const formatDuration = (seconds: number): string => {
+    if (seconds === 0) return '文書ファイル';
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
@@ -422,6 +584,15 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     }
     if (['mp4', 'mov', 'avi', 'mkv'].includes(extension)) {
       return <VideoFile />;
+    }
+    if (['txt', 'md'].includes(extension)) {
+      return <TextSnippet />;
+    }
+    if (['docx', 'doc'].includes(extension)) {
+      return <Description />;
+    }
+    if (extension === 'pdf') {
+      return <PictureAsPdf />;
     }
     return <AudioFileIcon />;
   };
@@ -451,11 +622,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Box sx={{ mr: 2 }}>
-                  {selectedFile.format.includes('mp4') || selectedFile.format.includes('mov') || selectedFile.format.includes('avi') ? (
-                    <VideoFile sx={{ fontSize: 40, color: 'primary.main' }} />
-                  ) : (
-                    <AudioFileIcon sx={{ fontSize: 40, color: 'primary.main' }} />
-                  )}
+                  {getFileIcon(selectedFile.name)}
                 </Box>
                 <Box sx={{ flexGrow: 1 }}>
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -477,7 +644,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                       size="small"
                       sx={{ backgroundColor: 'rgba(76, 175, 80, 0.1)' }}
                     />
-                    {selectedFile.size > 20 * 1024 * 1024 && (
+                    {selectedFile.metadata?.fileType === 'document' && (
+                      <Chip
+                        label="文書ファイル"
+                        size="small"
+                        sx={{ backgroundColor: 'rgba(255, 152, 0, 0.1)', color: 'orange.main' }}
+                      />
+                    )}
+                    {selectedFile.size > 20 * 1024 * 1024 && selectedFile.metadata?.fileType !== 'document' && (
                       <Chip
                         label="ffmpeg.wasm対応"
                         size="small"
@@ -487,7 +661,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                   </Box>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                  {selectedFile.format.includes('mp3') || selectedFile.format.includes('wav') || selectedFile.format.includes('m4a') ? (
+                  {selectedFile.metadata?.fileType === 'audio' && (
                     <IconButton
                       onClick={togglePlayback}
                       sx={{
@@ -498,7 +672,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                     >
                       {isPlaying ? <Pause /> : <PlayArrow />}
                     </IconButton>
-                  ) : null}
+                  )}
                   <IconButton
                     onClick={handleFileRemove}
                     sx={{
@@ -511,7 +685,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                   </IconButton>
                 </Box>
               </Box>
-              {(selectedFile.format.includes('mp3') || selectedFile.format.includes('wav') || selectedFile.format.includes('m4a')) && selectedFile.path ? (
+              {selectedFile.metadata?.fileType === 'audio' && selectedFile.path && (
                 <audio
                   ref={audioRef}
                   src={selectedFile.path}
@@ -531,7 +705,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                   style={{ display: 'none' }}
                   preload="metadata"
                 />
-              ) : null}
+              )}
             </CardContent>
           </Card>
         </Zoom>
@@ -617,7 +791,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({
               ファイルを選択
             </Button>
             <Typography variant="body2" sx={{ color: 'text.secondary', mt: 3 }}>
-              対応形式: {acceptedFormats.join(', ').toUpperCase()}
+              <strong>音声・動画:</strong> {['mp3', 'wav', 'm4a', 'flac', 'aac', 'mp4', 'mov', 'avi'].join(', ').toUpperCase()}
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              <strong>文書:</strong> {['docx', 'doc', 'txt', 'md', 'pdf'].join(', ').toUpperCase()}
             </Typography>
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               最大ファイルサイズ: {formatFileSize(maxFileSize)}

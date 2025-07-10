@@ -1,7 +1,7 @@
 {
   "name": "minutes-gen",
-  "version": "0.7.1",
-  "description": "MinutesGen v1.0 - AI-powered minutes generation from audio/video files",
+  "version": "0.7.2",
+  "description": "MinutesGen v0.7.2 - AI-powered minutes generation from audio/video files",
   "main": "dist/main.js",
   "homepage": "./",
   "scripts": {
@@ -13,10 +13,10 @@
     "build:react": "vite build",
     "build:electron": "tsc -p tsconfig.main.json",
     "package": "npm run build && electron-builder",
-    "dist:win": "npm run build && electron-builder --win",
-    "dist:portable": "npm run build && electron-builder --win portable",
+    "dist:win": "npm run build && electron-builder --win --ia32",
+    "dist:portable": "npm run build && electron-builder --win portable --ia32",
     "dist:corporate": "npm run build && electron-builder --win portable --config.compression=store",
-    "dist:zip": "npm run build && electron-builder --win dir && cd dist-electron && powershell Compress-Archive -Path win-unpacked -DestinationPath MinutesGen-v0.7.1-portable.zip",
+    "dist:zip": "npm run build && electron-builder --win dir --ia32 && cd dist-electron && zip -r MinutesGen-v0.7.2-portable.zip win-unpacked/",
     "dist:signed": "npm run build && electron-builder --win --publish=never",
     "create-cert": "powershell -ExecutionPolicy Bypass -File scripts/create-certificate.ps1",
     "test:exe-mode": "npm run build && electron scripts/test-exe-mode.js",
@@ -29,7 +29,9 @@
     "test:coverage": "jest --coverage",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:exe-comprehensive": "npm run build && electron scripts/test-exe-comprehensive.js",
+    "encrypt-api-key": "node scripts/encrypt-api-key.js"
   },
   "keywords": [
     "minutes",
@@ -44,6 +46,9 @@
   "devDependencies": {
     "@ffmpeg/core-mt": "^0.12.10",
     "@playwright/test": "^1.40.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/jest": "^29.5.0",
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
@@ -57,7 +62,9 @@
     "eslint": "^8.45.0",
     "eslint-plugin-react": "^7.33.0",
     "eslint-plugin-react-hooks": "^4.6.0",
+    "identity-obj-proxy": "^3.0.0",
     "jest": "^29.5.0",
+    "jest-transform-stub": "^2.0.0",
     "jsdom": "^26.1.0",
     "ts-jest": "^29.1.0",
     "typescript": "^5.0.0",
@@ -73,18 +80,20 @@
     "@mui/lab": "^5.0.0-alpha.140",
     "@mui/material": "^5.14.0",
     "@mui/x-date-pickers": "^6.10.0",
+    "@types/crypto-js": "^4.2.2",
     "axios": "^1.5.0",
     "chart.js": "^4.3.0",
-    "crypto-js": "^4.1.1",
+    "crypto-js": "^4.2.0",
     "date-fns": "^2.30.0",
-    "docx": "^8.2.2",
+    "docx": "^8.5.0",
     "electron-store": "^8.1.0",
     "file-saver": "^2.0.5",
     "framer-motion": "^10.16.0",
     "html2canvas": "^1.4.1",
     "lodash": "^4.17.21",
-    "mammoth": "^1.6.0",
+    "mammoth": "^1.9.1",
     "marked": "^7.0.0",
+    "openai": "^5.8.3",
     "react": "^18.2.0",
     "react-beautiful-dnd": "^13.1.1",
     "react-chartjs-2": "^5.2.0",
@@ -95,7 +104,7 @@
     "uuid": "^9.0.0"
   },
   "build": {
-    "appId": "com.minutesgen.app",
+    "appId": "com.dentsu.minutesgen",
     "productName": "MinutesGen",
     "directories": {
       "output": "dist-electron"
@@ -104,30 +113,33 @@
       "dist/**/*",
       "node_modules/**/*"
     ],
+    "asarUnpack": [
+      "**/node_modules/@ffmpeg/**/*",
+      "**/node_modules/ffmpeg-static/**/*",
+      "**/public/ffmpeg-core/**/*"
+    ],
     "mac": {
       "category": "public.app-category.productivity"
     },
     "win": {
+      "icon": "assets/favicon.ico",
       "target": [
         {
           "target": "portable",
           "arch": [
-            "x64"
+            "ia32"
           ]
         },
         {
           "target": "dir",
           "arch": [
-            "x64"
+            "ia32"
           ]
         }
       ],
       "requestedExecutionLevel": "asInvoker",
-      "artifactName": "MinutesGen-v${version}-${os}-${arch}.${ext}",
-      "certificateFile": "MinutesGen-CodeSigning.p12",
-      "certificatePassword": "MinutesGen2025",
-      "verifyUpdateCodeSignature": false,
-      "publisherName": "MinutesGen Team"
+      "artifactName": "MinutesGen_議事録アプリ_v${version}.${ext}",
+      "publisherName": "DENTSU PROMOTION EXE INC."
     },
     "linux": {
       "target": "AppImage"

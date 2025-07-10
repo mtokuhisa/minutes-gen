@@ -15,18 +15,29 @@ export interface AudioSegment {
   endTime: number;
 }
 
+export interface SegmentBoundary {
+  start: number;
+  end: number;
+  overlapStart?: number; // オーバーラップ開始時刻
+  overlapEnd?: number;   // オーバーラップ終了時刻
+}
+
 export class AudioProcessorService {
   private ffmpeg: FFmpeg;
   private isLoaded: boolean = false;
   private loadingPromise: Promise<void> | null = null;
   private preloadAttempted: boolean = false;
 
+  // 分割設定
+  private readonly MAX_SEGMENT_SIZE = 15 * 1024 * 1024; // 15MB
+  private readonly OVERLAP_SIZE = 1.5 * 1024 * 1024; // 1.5MB オーバーラップ
+
   constructor() {
     // Self-hosted コアファイルを優先的に読み込む（public/ffmpeg-core/dist/umd 下に配置）
     this.ffmpeg = new FFmpeg({
       log: false,
-      // ffmpeg-core.js へのフルパスを指定 (マルチスレッド版)
-      corePath: '/ffmpeg-core/dist/umd/ffmpeg-core.js',
+      // 相対パスを使用してElectronパッケージ後も動作するように修正
+      corePath: './ffmpeg-core/dist/umd/ffmpeg-core.js',
     });
     // バックグラウンドでプリロードを試行
     this.attemptPreload();
@@ -150,25 +161,120 @@ export class AudioProcessorService {
   }
 
   /**
-   * 大容量音声ファイルを適切なセグメントに分割
-   *
-   * @param file - 処理対象の音声ファイル
-   * @param segmentDurationSeconds - 各セグメントの目標時間（秒）
-   * @param onProgress - 進捗更新コールバック
-   * @returns 分割された音声セグメントの配列
-   *
-   * @description
-   * この関数は ffmpeg.wasm を使用して、大容量の音声/動画ファイルを処理可能なチャンクに分割します。
-   * 処理は以下の2ステップで行われます:
-   * 1. 【正規化】入力ファイルを、コーデックやコンテナ形式に依存しない標準的な音声形式 (16-bit PCM WAV) に変換します。
-   *    これにより、後続の処理の安定性が劇的に向上します。
-   * 2. 【セグメント化】ffmpeg の強力な `segment` ミキサーを使用し、一度のコマンドで正規化済みWAVファイルを
-   *    指定された長さのセグメントに高速かつ正確に分割します。`-c copy` を使用しないことで、
-   *    キーフレームの問題を回避し、あらゆるファイル形式で安定した分割を実現します。
+   * 音声圧縮を実行
+   */
+  private async compressAudio(inputFileName: string, outputFileName: string, onProgress?: (progress: ProcessingProgress) => void): Promise<void> {
+    const ffmpeg = this.ffmpeg;
+    if (!ffmpeg) {
+      throw new Error('FFmpeg not initialized');
+    }
+
+    onProgress?.({
+      stage: 'transcribing',
+      percentage: 40,
+      currentTask: '音声圧縮中...',
+      estimatedTimeRemaining: 0,
+      logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: '音声圧縮を開始します...' }],
+      startedAt: new Date(),
+    });
+
+    try {
+      await ffmpeg.exec([
+        '-y',
+        '-i', inputFileName,
+        '-vn', // ビデオストリームを無視
+        '-acodec', 'libmp3lame', // MP3エンコーダーを使用
+        '-b:a', '128k', // ビットレートを128kbpsに設定
+        '-ar', '44100', // サンプルレートを44.1kHzに統一
+        '-ac', '1', // チャンネルをモノラルに統一
+        outputFileName
+      ]);
+      onProgress?.({
+        stage: 'transcribing',
+        percentage: 45,
+        currentTask: '音声圧縮完了',
+        estimatedTimeRemaining: 0,
+        logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'success', message: '音声圧縮が完了しました。' }],
+        startedAt: new Date(),
+      });
+    } catch (error) {
+      console.error('音声圧縮に失敗しました:', error);
+      let errorMessage = '音声圧縮処理中にエラーが発生しました。';
+      if (error instanceof Error) {
+        errorMessage = `音声圧縮処理中にエラーが発生しました: ${error.message}`;
+      }
+      onProgress?.({
+        stage: 'error',
+        percentage: 100,
+        currentTask: '音声圧縮エラー',
+        estimatedTimeRemaining: 0,
+        logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'error', message: errorMessage }],
+        startedAt: new Date(),
+      });
+      throw new Error(errorMessage);
+    }
+  }
+
+  /**
+   * ファイルサイズベースで分割境界を計算
+   */
+  private calculateSizeBasedSegments(duration: number, estimatedSizeBytes: number): SegmentBoundary[] {
+    const segments: SegmentBoundary[] = [];
+    
+    // 15MB未満の場合は分割しない
+    if (estimatedSizeBytes < this.MAX_SEGMENT_SIZE) {
+      return [{
+        start: 0,
+        end: duration,
+        overlapStart: 0,
+        overlapEnd: 0
+      }];
+    }
+
+    // 1秒あたりのファイルサイズを推定
+    const bytesPerSecond = estimatedSizeBytes / duration;
+    
+    // 15MBに相当する時間を計算
+    const targetSegmentDuration = this.MAX_SEGMENT_SIZE / bytesPerSecond;
+    
+    // 1.5MBに相当するオーバーラップ時間を計算
+    const overlapDuration = this.OVERLAP_SIZE / bytesPerSecond;
+    
+    let currentStart = 0;
+    
+    while (currentStart < duration) {
+      const segmentEnd = Math.min(currentStart + targetSegmentDuration, duration);
+      
+      // 最後のセグメントでない場合のみオーバーラップを適用
+      const isLastSegment = segmentEnd >= duration;
+      const overlapStart = isLastSegment ? 0 : Math.max(0, segmentEnd - overlapDuration);
+      const overlapEnd = isLastSegment ? 0 : segmentEnd;
+      
+      segments.push({
+        start: currentStart,
+        end: segmentEnd,
+        overlapStart,
+        overlapEnd
+      });
+      
+      // 最後のセグメントの場合はループを終了
+      if (isLastSegment) {
+        break;
+      }
+      
+      // 次のセグメントはオーバーラップを考慮せず、現在のセグメントの終了位置から開始
+      currentStart = segmentEnd;
+    }
+    
+    return segments;
+  }
+
+  /**
+   * 音声ファイルを処理してセグメントに分割
    */
   async processLargeAudioFile(
     file: AudioFile,
-    segmentDurationSeconds: number = 600, // 10分セグメント
+    segmentDurationSeconds: number = 600, // 使用しない（互換性のため残す）
     onProgress?: (progress: ProcessingProgress) => void
   ): Promise<AudioSegment[]> {
     if (!file.rawFile) {
@@ -179,6 +285,7 @@ export class AudioProcessorService {
 
     try {
       const inputFileName = 'input.' + this.getFileExtension(file.name);
+      const fileSizeBytes = file.rawFile.size;
       
       onProgress?.({
         stage: 'transcribing',
@@ -188,8 +295,11 @@ export class AudioProcessorService {
         logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: '音声ファイルを処理システムに読み込んでいます...' }],
         startedAt: new Date(),
       });
-      await this.ffmpeg.writeFile(inputFileName, await fetchFile(file.rawFile));
-      
+
+      // ファイルをffmpeg.wasmに読み込み
+      const fileData = await fetchFile(file.rawFile);
+      await this.ffmpeg.writeFile(inputFileName, fileData);
+
       // ==============================================================
       // ステップ1: 音声の長さと情報を取得
       // ==============================================================
@@ -204,104 +314,109 @@ export class AudioProcessorService {
             throw new Error('音声ファイルの長さが取得できませんでした。ファイルに音声トラックがないか、破損している可能性があります。');
         }
       }
-      const totalSegments = Math.ceil(duration / segmentDurationSeconds);
 
       // ==============================================================
-      // ステップ2: 正規化とセグメント化を同時に実行
+      // ステップ2: 音声圧縮（必要な場合のみ）
       // ==============================================================
-      onProgress?.({
-        stage: 'transcribing',
-        percentage: 30,
-        currentTask: `大きなファイルをAI向けに${totalSegments}個に分割中...`,
-        estimatedTimeRemaining: 0,
-        logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: `音声時間: ${Math.round(duration)}秒、セグメント数: ${totalSegments}。AI処理に最適化した形式で分割を開始します。` }],
-        startedAt: new Date(),
-      });
-
-      const outputPattern = `segment_%03d.wav`;
+      let workingFileName = inputFileName;
       
-      // -i: 入力, -f segment: セグメント化, -segment_time: 分割時間, -vn: ビデオなし, -acodec...: 音声正規化
-      await this.ffmpeg.exec([
-        '-i', inputFileName,
-        '-f', 'segment',
-        '-segment_time', segmentDurationSeconds.toString(),
-        '-vn', // ビデオストリームを無視
-        '-acodec', 'pcm_s16le', // 16bitリトルエンディアンPCM (最も標準的なWAV)
-        '-ar', '44100', // サンプルレートを44.1kHzに統一
-        '-ac', '1', // チャンネルをモノラルに統一
-        '-c:a', 'pcm_s16le', // オーディオコーデックを明示的に指定
-        outputPattern
-      ]);
-
-      const segments: AudioSegment[] = [];
-      const fileList = await this.ffmpeg.listDir('.');
-      
-      const segmentFiles = fileList
-        .filter(f => f.name.startsWith('segment_') && f.name.endsWith('.wav'))
-        .sort((a, b) => a.name.localeCompare(b.name));
-
-      if(segmentFiles.length === 0){
-        // セグメントが一つも生成されなかった場合、ファイル全体を単一セグメントとして扱う
-         onProgress?.({
-            stage: 'transcribing',
-            percentage: 45,
-            currentTask: `音声ファイルをAI向けに最適化中...`,
-            estimatedTimeRemaining: 0,
-            logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: `ファイルサイズが適切なため、AI処理に最適化した形式に変換します。` }],
-            startedAt: new Date(),
-        });
-        const singleOutputName = "segment_000.wav";
-        await this.ffmpeg.exec([
-          '-i', inputFileName,
-          '-vn', '-acodec', 'pcm_s16le', '-ar', '44100', '-ac', '1',
-          singleOutputName
-        ]);
-        segmentFiles.push({ name: singleOutputName, is_dir: false, size: 0 }); // sizeは不明
-      }
-      
-      let cumulativeTime = 0;
-      for (let i = 0; i < segmentFiles.length; i++) {
-        const segmentFile = segmentFiles[i];
+      // 15MB以上の場合は圧縮を実行
+      if (fileSizeBytes >= this.MAX_SEGMENT_SIZE) {
+        const compressedFileName = 'compressed_output.mp3';
+        await this.compressAudio(inputFileName, compressedFileName, onProgress);
+        workingFileName = compressedFileName;
+        
+        // 圧縮後のファイルサイズを推定（実際には取得できないため、圧縮比を仮定）
+        const estimatedCompressedSize = fileSizeBytes * 0.3; // 30%に圧縮されると仮定
         
         onProgress?.({
           stage: 'transcribing',
-          percentage: 50 + Math.round((i / segmentFiles.length) * 45),
-          currentTask: `音声セグメント ${i + 1}/${segmentFiles.length} を準備中...`,
+          percentage: 50,
+          currentTask: `圧縮完了（推定 ${Math.round(estimatedCompressedSize / 1024 / 1024)}MB）`,
           estimatedTimeRemaining: 0,
-          logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: `音声セグメント ${i + 1} を処理システムに読み込んでいます。` }],
+          logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'success', message: `音声圧縮が完了しました。推定サイズ: ${Math.round(estimatedCompressedSize / 1024 / 1024)}MB` }],
+          startedAt: new Date(),
+        });
+      }
+
+      // ==============================================================
+      // ステップ3: ファイルサイズベースの分割境界を計算
+      // ==============================================================
+      const segments = this.calculateSizeBasedSegments(duration, fileSizeBytes);
+      
+      onProgress?.({
+        stage: 'transcribing',
+        percentage: 55,
+        currentTask: `分割計画: ${segments.length}セグメント`,
+        estimatedTimeRemaining: 0,
+        logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: `ファイルサイズ ${Math.round(fileSizeBytes / 1024 / 1024)}MB を ${segments.length}個のセグメントに分割します。` }],
+        startedAt: new Date(),
+      });
+
+      // ==============================================================
+      // ステップ4: セグメント化を実行
+      // ==============================================================
+      const audioSegments: AudioSegment[] = [];
+
+      for (let i = 0; i < segments.length; i++) {
+        const segment = segments[i];
+        const segmentFileName = `segment_${i.toString().padStart(3, '0')}.wav`;
+        
+        onProgress?.({
+          stage: 'transcribing',
+          percentage: 60 + Math.round((i / segments.length) * 30),
+          currentTask: `セグメント ${i + 1}/${segments.length} を作成中...`,
+          estimatedTimeRemaining: 0,
+          logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'info', message: `セグメント ${i + 1}: ${segment.start.toFixed(1)}s - ${segment.end.toFixed(1)}s` }],
           startedAt: new Date(),
         });
 
-        const data = await this.ffmpeg.readFile(segmentFile.name);
+        const segmentArgs = [
+          '-y',
+          '-i', workingFileName,
+          '-ss', segment.start.toString(),
+          '-t', (segment.end - segment.start).toString(),
+          '-vn', // ビデオストリームを無視
+          '-acodec', 'pcm_s16le', // 16bitリトルエンディアンPCM
+          '-ar', '44100', // サンプルレートを44.1kHzに統一
+          '-ac', '1', // チャンネルをモノラルに統一
+          segmentFileName
+        ];
+        
+        await this.ffmpeg.exec(segmentArgs);
+
+        const data = await this.ffmpeg.readFile(segmentFileName);
         const blob = new Blob([data], { type: 'audio/wav' });
         
-        await this.ffmpeg.deleteFile(segmentFile.name);
+        await this.ffmpeg.deleteFile(segmentFileName);
         
         const segmentDuration = await this.getAudioDurationFromBlob(blob);
 
-        segments.push({
+        audioSegments.push({
           blob,
-          name: segmentFile.name,
+          name: segmentFileName,
           duration: segmentDuration,
-          startTime: cumulativeTime,
-          endTime: cumulativeTime + segmentDuration,
+          startTime: segment.start,
+          endTime: segment.end,
         });
-        cumulativeTime += segmentDuration;
       }
       
-      // 元ファイルを削除してメモリ解放
+      // 作業ファイルを削除してメモリ解放
       await this.ffmpeg.deleteFile(inputFileName);
+      if (workingFileName !== inputFileName) {
+        await this.ffmpeg.deleteFile(workingFileName);
+      }
 
       onProgress?.({
         stage: 'transcribing',
         percentage: 95,
         currentTask: '音声ファイルの準備完了',
         estimatedTimeRemaining: 0,
-        logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'success', message: `合計 ${segments.length} 個の音声セグメントの準備が完了しました。` }],
+        logs: [{ id: Date.now().toString(), timestamp: new Date(), level: 'success', message: `合計 ${audioSegments.length} 個の音声セグメントの準備が完了しました。` }],
         startedAt: new Date(),
       });
       
-      return segments;
+      return audioSegments;
 
     } catch (error) {
       console.error('ffmpeg 処理エラー:', error);

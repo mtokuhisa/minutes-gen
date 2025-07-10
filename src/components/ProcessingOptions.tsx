@@ -5,23 +5,17 @@ import {
   CardContent,
   Typography,
   FormControl,
-  FormLabel,
   RadioGroup,
   FormControlLabel,
   Radio,
-  FormGroup,
-  Checkbox,
   TextField,
   Chip,
-  Slider,
   Switch,
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Alert,
   Tooltip,
   IconButton,
-  Divider,
   Grid,
   Select,
   MenuItem,
@@ -37,15 +31,12 @@ import {
   ListItemSecondaryAction,
   Tabs,
   Tab,
-  Paper,
   InputLabel,
+  Alert,
 } from '@mui/material';
 import {
   Speed,
-  HighQuality,
   Language,
-  Description,
-  People,
   Schedule,
   Settings,
   ExpandMore,
@@ -59,16 +50,14 @@ import {
   Edit,
   Delete,
   Save,
-  Cancel,
   Search,
   Category,
+  Cancel,
   Label,
 } from '@mui/icons-material';
 import {
   ProcessingOptions as ProcessingOptionsType,
   ProcessingSpeed,
-  ProcessingQuality,
-  OutputFormat,
   SupportedLanguage,
 } from '../types';
 import {
@@ -96,80 +85,19 @@ interface ProcessingOptionsProps {
   disabled?: boolean;
 }
 
+// 速度設定は1倍速固定（精度最優先）
 const speedOptions = [
   {
-    value: 'fast' as ProcessingSpeed,
-    label: '高速',
-    description: '速度優先、基本的な品質',
-    icon: <Rocket />,
-    color: '#ff9800',
-    estimatedTime: '2-5分',
-  },
-  {
     value: 'normal' as ProcessingSpeed,
-    label: '標準',
-    description: 'バランスの取れた処理',
+    label: '標準 (1倍速)',
+    description: '最高精度を実現するため1倍速固定',
     icon: <CloudQueue />,
-    color: '#2196f3',
+    color: '#4caf50',
     estimatedTime: '5-10分',
   },
-  {
-    value: 'high-quality' as ProcessingSpeed,
-    label: '高品質',
-    description: '品質優先、詳細な解析',
-    icon: <Diamond />,
-    color: '#9c27b0',
-    estimatedTime: '10-20分',
-  },
 ];
 
-const qualityOptions = [
-  {
-    value: 'draft' as ProcessingQuality,
-    label: 'ドラフト',
-    description: '基本的な文字起こし',
-    features: ['基本的な文字起こし', '発話者識別なし', '簡単な整形'],
-  },
-  {
-    value: 'standard' as ProcessingQuality,
-    label: '標準',
-    description: '一般的な議事録品質',
-    features: ['高精度な文字起こし', '発話者識別', '要点抽出', '基本的な整形'],
-  },
-  {
-    value: 'premium' as ProcessingQuality,
-    label: 'プレミアム',
-    description: '最高品質の議事録',
-    features: ['最高精度の文字起こし', '詳細な発話者識別', '要点・アクション抽出', '高品質な整形', '感情分析'],
-  },
-];
 
-const outputFormatOptions = [
-  {
-    value: 'markdown' as OutputFormat,
-    label: 'Markdown',
-    description: '軽量でシンプル',
-    icon: '📝',
-    extension: '.md',
-    features: ['軽量', 'GitHub対応', 'プレーンテキスト'],
-  },
-  {
-    value: 'word' as OutputFormat,
-    label: 'Word',
-    description: 'ビジネス向け',
-    icon: '📄',
-    extension: '.docx',
-    features: ['ビジネス向け', '高い互換性', '印刷対応'],
-  },
-  {
-    value: 'html' as OutputFormat,
-    label: 'HTML',
-    description: 'Web表示対応',
-    icon: '🌐',
-    extension: '.html',
-    features: ['Web表示', 'リンク対応', 'インタラクティブ'],
-  },
-];
 
 const languageOptions = [
   { value: 'ja' as SupportedLanguage, label: '日本語', flag: '🇯🇵' },
@@ -182,18 +110,18 @@ const modelOptions = [
   {
     value: 'gpt-4.1',
     label: 'GPT-4.1',
-    description: '高速で安定した議事録生成',
+    description: '文字起こしから丁寧要約',
     icon: <AutoAwesome />,
     color: '#4caf50',
-    features: ['高速処理', '安定性重視', 'コスト効率'],
+    features: ['高速処理', 'コスト効率'],
   },
   {
     value: 'o3',
-    label: 'OpenAI o3',
-    description: '最新の推論能力で高品質な議事録',
+    label: 'o3',
+    description: '複雑議論を解析する洞察力',
     icon: <Psychology />,
     color: '#9c27b0',
-    features: ['最新AI', '高品質', '推論能力'],
+    features: ['高度推論', '高性能'],
   },
 ];
 
@@ -257,20 +185,9 @@ export const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
     }
   }, []);
 
-  const handleSpeedChange = useCallback((speed: ProcessingSpeed) => {
-    onOptionsChange({ ...options, speed });
-  }, [options, onOptionsChange]);
+  // 速度設定は1倍速固定のため削除
 
-  const handleQualityChange = useCallback((quality: ProcessingQuality) => {
-    onOptionsChange({ ...options, quality });
-  }, [options, onOptionsChange]);
 
-  const handleOutputFormatChange = useCallback((format: OutputFormat, checked: boolean) => {
-    const newFormats = checked
-      ? [...options.outputFormats, format]
-      : options.outputFormats.filter(f => f !== format);
-    onOptionsChange({ ...options, outputFormats: newFormats });
-  }, [options, onOptionsChange]);
 
   const handleLanguageChange = useCallback((language: SupportedLanguage) => {
     onOptionsChange({ ...options, language });
@@ -285,8 +202,8 @@ export const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
   }, [options, onOptionsChange]);
 
   // 新しいハンドラー関数
-  const handleModelChange = useCallback((model: 'gpt-4.1' | 'o3') => {
-    onOptionsChange({ ...options, model });
+  const handleModelChange = useCallback((minutesModel: 'gpt-4.1' | 'o3') => {
+    onOptionsChange({ ...options, minutesModel });
   }, [options, onOptionsChange]);
 
   const handlePromptSelect = useCallback((promptId: string, type: 'preset' | 'custom') => {
@@ -365,190 +282,16 @@ export const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
   }, [promptStore, options, onOptionsChange]);
 
   const getEstimatedCost = () => {
-    const baseCost = options.quality === 'draft' ? 100 : options.quality === 'standard' ? 200 : 400;
-    const speedMultiplier = options.speed === 'fast' ? 0.8 : options.speed === 'normal' ? 1.0 : 1.5;
-    const formatMultiplier = options.outputFormats.length * 0.1 + 0.9;
-    return Math.round(baseCost * speedMultiplier * formatMultiplier);
+    // 1倍速固定、3形式同時生成のため簡素化
+    return 200; // 標準コスト
   };
 
   const getEstimatedTime = () => {
-    const selectedSpeed = speedOptions.find(s => s.value === options.speed);
-    return selectedSpeed?.estimatedTime || '5-10分';
+    return '5-10分'; // 1倍速固定
   };
 
   return (
     <Box sx={{ width: '100%' }}>
-      {/* 処理速度設定 */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-            <Speed sx={{ mr: 1, color: 'primary.main' }} />
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              処理速度
-            </Typography>
-            <Tooltip title="処理速度は品質と時間のバランスを決定します">
-              <IconButton size="small" sx={{ ml: 1 }}>
-                <Info fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Box>
-
-          <Grid container spacing={2}>
-            {speedOptions.map((speed) => (
-              <Grid item xs={12} md={4} key={speed.value}>
-                <Card
-                  sx={{
-                    cursor: 'pointer',
-                    border: '2px solid',
-                    borderColor: options.speed === speed.value ? 'primary.main' : 'grey.200',
-                    backgroundColor: options.speed === speed.value ? 'rgba(76, 175, 80, 0.05)' : 'transparent',
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      borderColor: 'primary.main',
-                      backgroundColor: 'rgba(76, 175, 80, 0.03)',
-                    },
-                  }}
-                  onClick={() => !disabled && handleSpeedChange(speed.value)}
-                >
-                  <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                    <Box sx={{ color: speed.color, mb: 1 }}>
-                      {speed.icon}
-                    </Box>
-                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
-                      {speed.label}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-                      {speed.description}
-                    </Typography>
-                    <Chip
-                      label={speed.estimatedTime}
-                      size="small"
-                      sx={{
-                        backgroundColor: options.speed === speed.value ? 'primary.main' : 'grey.200',
-                        color: options.speed === speed.value ? 'white' : 'text.secondary',
-                      }}
-                    />
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        </CardContent>
-      </Card>
-
-      {/* 品質設定 */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-            <HighQuality sx={{ mr: 1, color: 'primary.main' }} />
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              品質設定
-            </Typography>
-          </Box>
-
-          <FormControl component="fieldset">
-            <RadioGroup
-              value={options.quality}
-              onChange={(e) => handleQualityChange(e.target.value as ProcessingQuality)}
-            >
-              {qualityOptions.map((quality) => (
-                <Box key={quality.value} sx={{ mb: 2 }}>
-                  <FormControlLabel
-                    value={quality.value}
-                    control={<Radio disabled={disabled} />}
-                    label={
-                      <Box>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                          {quality.label}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                          {quality.description}
-                        </Typography>
-                      </Box>
-                    }
-                  />
-                  <Box sx={{ ml: 4, mt: 1 }}>
-                    {quality.features.map((feature, index) => (
-                      <Chip
-                        key={index}
-                        label={feature}
-                        size="small"
-                        sx={{
-                          mr: 1,
-                          mb: 0.5,
-                          backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                          fontSize: '0.7rem',
-                        }}
-                      />
-                    ))}
-                  </Box>
-                </Box>
-              ))}
-            </RadioGroup>
-          </FormControl>
-        </CardContent>
-      </Card>
-
-      {/* 出力形式設定 */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-            <Description sx={{ mr: 1, color: 'primary.main' }} />
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              出力形式
-            </Typography>
-          </Box>
-
-          <FormGroup>
-            <Grid container spacing={2}>
-              {outputFormatOptions.map((format) => (
-                <Grid item xs={12} md={6} key={format.value}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={options.outputFormats.includes(format.value)}
-                        onChange={(e) => handleOutputFormatChange(format.value, e.target.checked)}
-                        disabled={disabled}
-                      />
-                    }
-                    label={
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <Typography sx={{ mr: 1, fontSize: '1.2rem' }}>
-                          {format.icon}
-                        </Typography>
-                        <Box>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                            {format.label} ({format.extension})
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                            {format.description}
-                          </Typography>
-                          <Box sx={{ mt: 0.5 }}>
-                            {format.features.map((feature, index) => (
-                              <Chip
-                                key={index}
-                                label={feature}
-                                size="small"
-                                sx={{
-                                  mr: 0.5,
-                                  fontSize: '0.6rem',
-                                  height: 20,
-                                  backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                                }}
-                              />
-                            ))}
-                          </Box>
-                        </Box>
-                      </Box>
-                    }
-                  />
-                </Grid>
-              ))}
-            </Grid>
-          </FormGroup>
-        </CardContent>
-      </Card>
-
       {/* 言語設定 */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -607,8 +350,8 @@ export const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
                   sx={{
                     cursor: 'pointer',
                     border: '2px solid',
-                    borderColor: options.model === model.value ? 'primary.main' : 'grey.200',
-                    backgroundColor: options.model === model.value ? 'rgba(76, 175, 80, 0.05)' : 'transparent',
+                    borderColor: options.minutesModel === model.value ? 'primary.main' : 'grey.200',
+                    backgroundColor: options.minutesModel === model.value ? 'rgba(76, 175, 80, 0.05)' : 'transparent',
                     transition: 'all 0.3s ease',
                     '&:hover': {
                       borderColor: 'primary.main',
@@ -636,8 +379,8 @@ export const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
                           sx={{
                             fontSize: '0.7rem',
                             height: 20,
-                            backgroundColor: options.model === model.value ? 'primary.main' : 'grey.200',
-                            color: options.model === model.value ? 'white' : 'text.secondary',
+                            backgroundColor: options.minutesModel === model.value ? 'primary.main' : 'grey.200',
+                            color: options.minutesModel === model.value ? 'white' : 'text.secondary',
                           }}
                         />
                       ))}
@@ -1002,26 +745,6 @@ export const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
         </AccordionSummary>
         <AccordionDetails>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {/* 発話者識別 */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <People sx={{ mr: 1, color: 'primary.main' }} />
-                <Box>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                    発話者識別
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    誰が話しているかを識別します
-                  </Typography>
-                </Box>
-              </Box>
-              <Switch
-                checked={options.speakerDetection}
-                onChange={(e) => handleSwitchChange('speakerDetection', e.target.checked)}
-                disabled={disabled}
-              />
-            </Box>
-
             {/* 句読点自動挿入 */}
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -1038,26 +761,6 @@ export const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
               <Switch
                 checked={options.punctuation}
                 onChange={(e) => handleSwitchChange('punctuation', e.target.checked)}
-                disabled={disabled}
-              />
-            </Box>
-
-            {/* タイムスタンプ */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Schedule sx={{ mr: 1, color: 'primary.main' }} />
-                <Box>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                    タイムスタンプ
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    発言の時間を記録します
-                  </Typography>
-                </Box>
-              </Box>
-              <Switch
-                checked={options.timestamps}
-                onChange={(e) => handleSwitchChange('timestamps', e.target.checked)}
                 disabled={disabled}
               />
             </Box>
@@ -1094,19 +797,11 @@ export const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
             <Chip
-              label={`速度: ${speedOptions.find(s => s.value === options.speed)?.label}`}
+              label={`モデル: ${modelOptions.find(m => m.value === options.minutesModel)?.label}`}
               sx={{ backgroundColor: 'rgba(76, 175, 80, 0.2)' }}
             />
             <Chip
-              label={`品質: ${qualityOptions.find(q => q.value === options.quality)?.label}`}
-              sx={{ backgroundColor: 'rgba(76, 175, 80, 0.2)' }}
-            />
-            <Chip
-              label={`モデル: ${modelOptions.find(m => m.value === options.model)?.label}`}
-              sx={{ backgroundColor: 'rgba(76, 175, 80, 0.2)' }}
-            />
-            <Chip
-              label={`出力: ${options.outputFormats.length}形式`}
+              label={`出力: 3形式同時生成`}
               sx={{ backgroundColor: 'rgba(76, 175, 80, 0.2)' }}
             />
             <Chip

@@ -25,26 +25,21 @@ export interface AudioMetadata {
   sampleRate: number; // Hz
   channels: number; // チャンネル数
   codec: string; // コーデック名
+  fileType?: 'audio' | 'video' | 'document'; // ファイルタイプ
+  documentText?: string; // 文書ファイルの場合のテキスト内容
 }
 
 // 処理オプション関連の型定義
 export interface ProcessingOptions {
-  speed: ProcessingSpeed;
-  quality: ProcessingQuality;
-  outputFormats: OutputFormat[];
   language: SupportedLanguage;
-  speakerDetection: boolean;
   punctuation: boolean;
   timestamps: boolean;
   customPrompt?: string;
-  model: 'gpt-4.1' | 'o3';
+  minutesModel: 'gpt-4.1' | 'o3';
   selectedPrompt: string | null;
   promptType: 'preset' | 'custom';
 }
 
-export type ProcessingSpeed = 'fast' | 'normal' | 'high-quality';
-export type ProcessingQuality = 'draft' | 'standard' | 'premium';
-export type OutputFormat = 'markdown' | 'word' | 'html';
 export type SupportedLanguage = 'ja' | 'en' | 'auto';
 
 // 処理進捗関連の型定義
@@ -93,14 +88,14 @@ export interface Participant {
   id: string;
   name: string;
   role?: string;
-  speakingTime: number; // 秒
+  speakingTime?: number; // 秒（オプション）
   avatar?: string;
 }
 
 export interface KeyPoint {
   id: string;
   content: string;
-  timestamp: number; // 秒
+  timestamp?: number; // 秒（オプション）
   importance: 'high' | 'medium' | 'low';
   category?: string;
 }
@@ -112,17 +107,21 @@ export interface ActionItem {
   dueDate?: Date;
   priority: 'urgent' | 'high' | 'medium' | 'low';
   status: 'pending' | 'in-progress' | 'completed';
-  timestamp: number; // 秒
+  timestamp?: number; // 秒（オプション）
 }
 
 export interface TranscriptionSegment {
   id: string;
-  startTime: number; // 秒
-  endTime: number; // 秒
+  startTime?: number; // 秒（オプション）
+  endTime?: number; // 秒（オプション）
   speakerId?: string;
   text: string;
-  confidence: number; // 0-1
+  confidence?: number; // 0-1（オプション）
 }
+
+export type OutputFormat = 'markdown' | 'html' | 'word';
+
+export type ProcessingQuality = 'standard' | 'high' | 'premium';
 
 export interface GeneratedOutput {
   format: OutputFormat;
@@ -209,23 +208,33 @@ export interface AppConfig {
   timeoutDuration: number; // ミリ秒
 }
 
+// Electron API の型定義
+export interface ElectronAPI {
+  getCorporateConfig: () => Promise<any>;
+  getAppPath: () => Promise<string>;
+  isElectron: () => boolean;
+}
+
+// グローバル Window オブジェクトの拡張
+declare global {
+  interface Window {
+    electronAPI?: ElectronAPI;
+  }
+}
+
 // デフォルト値のエクスポート
 export const DEFAULT_PROCESSING_OPTIONS: ProcessingOptions = {
-  speed: 'normal',
-  quality: 'standard',
-  outputFormats: ['markdown', 'word'],
   language: 'ja',
-  speakerDetection: true,
   punctuation: true,
-  timestamps: true,
-  model: 'gpt-4.1',
+  timestamps: false,
+  minutesModel: 'gpt-4.1',
   selectedPrompt: null,
   promptType: 'preset',
 };
 
 export const DEFAULT_APP_CONFIG: AppConfig = {
   maxFileSize: 3 * 1024 * 1024 * 1024, // 3GB
-  supportedFormats: ['mp3', 'wav', 'm4a', 'flac', 'aac', 'mp4', 'mov', 'avi'],
+  supportedFormats: ['mp3', 'wav', 'm4a', 'flac', 'aac', 'mp4', 'mov', 'avi', 'docx', 'txt', 'md', 'pdf'],
   apiEndpoint: '/api/v1',
   retryAttempts: 3,
   timeoutDuration: 300000, // 5分

@@ -33,9 +33,11 @@ import { useTheme } from '../theme';
 
 interface AppHeaderProps {
   onRestart?: () => void;
+  onAuthReset?: () => void;
+  authMethod?: 'corporate' | 'personal' | null;
 }
 
-export const AppHeader: React.FC<AppHeaderProps> = ({ onRestart }) => {
+export const AppHeader: React.FC<AppHeaderProps> = ({ onRestart, onAuthReset, authMethod }) => {
   const { themeMode, toggleTheme, theme } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [restartDialogOpen, setRestartDialogOpen] = useState(false);
@@ -121,7 +123,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onRestart }) => {
               onClick={handleLogoClick}
             >
               <img
-                src="/mgen_logo.svg"
+                src="./mgen_logo.svg"
                 alt="MinutesGen Logo"
                 style={{
                   height: '60px',
@@ -169,6 +171,29 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onRestart }) => {
                 {themeMode === 'color' ? <Palette /> : themeMode === 'light' ? <LightMode /> : <DarkMode />}
               </IconButton>
             </Tooltip>
+
+            {/* 認証リセットボタン */}
+            {onAuthReset && (
+              <Tooltip title={`認証リセット (現在: ${authMethod === 'corporate' ? '企業アカウント' : authMethod === 'personal' ? '個人アカウント' : '未認証'})`}>
+                <Button
+                  onClick={onAuthReset}
+                  size="small"
+                  sx={{
+                    color: 'white',
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      transform: 'translateY(-2px)',
+                    },
+                    transition: 'all 0.3s ease',
+                    borderRadius: 2,
+                    ml: 1,
+                  }}
+                >
+                  認証リセット
+                </Button>
+              </Tooltip>
+            )}
           </Box>
         </Toolbar>
       </Container>

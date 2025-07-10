@@ -1,0 +1,31 @@
+{
+  "apiKey": "your-corporate-openai-api-key",
+  "baseUrl": "https://api.openai.com/v1",
+  "organization": "your-org-id",
+  "project": "your-project-id",
+  "proxyUrl": "http://proxy.company.com:8080",
+  "proxyAuth": "username:password",
+  "allowPersonalKeys": false,
+  "chunkSizeBytes": 80000000,
+  "retryConfig": {
+    "maxRetries": 5,
+    "baseDelay": 3000,
+    "maxDelay": 120000,
+    "backoffMultiplier": 2
+  },
+  "models": {
+    "transcribe": "gpt-4o-transcribe",
+    "minutes": "gpt-4.1",
+    "tts": "gpt-4o-mini-tts"
+  },
+  "security": {
+    "enableCertificateValidation": false,
+    "enableDebugLogs": false,
+    "enableTelemetry": false
+  },
+  "performance": {
+    "timeoutDuration": 300000,
+    "maxConcurrentRequests": 3,
+    "enableCompression": true
+  }
+} 

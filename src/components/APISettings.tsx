@@ -1,124 +1,239 @@
-import React, { useState, useEffect } from 'react';
+// ===========================================
+// MinutesGen v1.0 - API設定コンポーネント（認証統合）
+// ===========================================
+
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   Button,
+  TextField,
   Box,
   Typography,
   Alert,
   FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Divider,
-  Switch,
+  FormLabel,
+  RadioGroup,
   FormControlLabel,
+  Radio,
+  Divider,
+  Chip,
+  CircularProgress,
+  Switch,
+  FormGroup,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
   IconButton,
   Tooltip,
+  Paper,
+  Grid,
+  Card,
+  CardContent,
+  CardHeader,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Tabs,
+  Tab,
+  TabPanel,
 } from '@mui/material';
 import {
   Settings,
-  Save,
-  Refresh,
-  Info,
-  VpnKey,
   Close,
+  Science,
   CheckCircle,
   Error,
+  Warning,
+  Info,
+  ExpandMore,
+  Refresh,
+  Business,
+  Person,
+  VpnKey,
+  Security,
 } from '@mui/icons-material';
-import { APIConfig, getAPIConfig, validateAPIConfig } from '../config/api';
-
-// ===========================================
-// MinutesGen v1.0 - API設定画面
-// ===========================================
+import { AuthService } from '../services/authService';
+import { APIConfig, getAPIConfig, validateAPIConfig, getCorporateStatus } from '../config/api';
 
 interface APISettingsProps {
   open: boolean;
   onClose: () => void;
-  onSave: (config: APIConfig) => void;
 }
 
-export const APISettings: React.FC<APISettingsProps> = ({ open, onClose, onSave }) => {
-  const [config, setConfig] = useState<APIConfig>(getAPIConfig());
-  const [validation, setValidation] = useState<{ isValid: boolean; errors: string[] }>({
-    isValid: true,
-    errors: [],
-  });
-  const [isTesting, setIsTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+interface TestResult {
+  success: boolean;
+  message: string;
+  details?: any;
+}
 
-  // 設定の初期化
+export const APISettings: React.FC<APISettingsProps> = ({ open, onClose }) => {
+  const [authService] = useState(() => AuthService.getInstance());
+  const [config, setConfig] = useState<APIConfig>(getAPIConfig());
+  const [personalApiKey, setPersonalApiKey] = useState('');
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [currentTab, setCurrentTab] = useState(0);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // 企業設定の状態
+  const corporateStatus = getCorporateStatus();
+
+  // 初期化
   useEffect(() => {
     if (open) {
-      setConfig(getAPIConfig());
-      setValidation({ isValid: true, errors: [] });
-      setTestResult(null);
+      const newConfig = getAPIConfig();
+      setConfig(newConfig);
+      
+      // 個人API KEYの現在値を取得
+      if (!newConfig.useCorporateKey) {
+        const savedPersonalKey = localStorage.getItem('minutesgen_personal_api_key');
+        if (savedPersonalKey) {
+          try {
+            const decrypted = authService.decryptApiKey(savedPersonalKey);
+            setPersonalApiKey(decrypted);
+          } catch (error) {
+            console.warn('個人API KEYの復号に失敗:', error);
+          }
+        }
+      }
     }
-  }, [open]);
-
-  // 設定値の更新
-  const handleConfigChange = (field: keyof APIConfig, value: any) => {
-    const newConfig = { ...config, [field]: value };
-    setConfig(newConfig);
-    
-    // バリデーション
-    const validation = validateAPIConfig(newConfig);
-    setValidation(validation);
-  };
+  }, [open, authService]);
 
   // API接続テスト
-  const testConnection = async () => {
+  const testConnection = useCallback(async () => {
     setIsTesting(true);
     setTestResult(null);
 
     try {
-      // OpenAI APIのテスト
-      const response = await fetch(`${config.baseUrl}/models`, {
+      // 認証確認
+      if (!authService.isAuthenticated()) {
+        throw new Error('認証が必要です。初回セットアップを完了してください。');
+      }
+
+      const apiKey = await authService.getApiKey();
+      if (!apiKey) {
+        throw new Error('API KEYが取得できませんでした。');
+      }
+
+      // 簡単なAPI呼び出しでテスト
+      const response = await fetch('https://api.openai.com/v1/models', {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${config.openaiApiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
       });
 
-      if (response.ok) {
-        setTestResult({
-          success: true,
-          message: 'API接続テストに成功しました！',
-        });
-      } else {
-        setTestResult({
-          success: false,
-          message: `API接続エラー: ${response.status} ${response.statusText}`,
-        });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`API接続エラー (${response.status}): ${errorData.error?.message || response.statusText}`);
       }
+
+      const data = await response.json();
+      const authMethod = authService.getAuthMethod();
+      const authMethodText = authMethod === 'corporate' ? '企業アカウント' : '個人アカウント';
+      
+      setTestResult({
+        success: true,
+        message: `API接続テストが成功しました！(${authMethodText})`,
+        details: {
+          modelsCount: data.data?.length || 0,
+          authMethod: authMethodText,
+        },
+      });
+
     } catch (error) {
+      console.error('API接続テストエラー:', error);
       setTestResult({
         success: false,
-        message: `接続エラー: ${error instanceof Error ? (error as Error).message : 'Unknown error'}`,
+        message: error instanceof Error ? error.message : 'API接続テストに失敗しました',
       });
     } finally {
       setIsTesting(false);
     }
-  };
+  }, [authService]);
 
-  // 設定の保存
-  const handleSave = () => {
-    if (validation.isValid) {
-      onSave(config);
-      onClose();
+  // 個人API KEYの保存
+  const savePersonalApiKey = useCallback(async () => {
+    if (!personalApiKey.trim()) {
+      setTestResult({
+        success: false,
+        message: 'API KEYを入力してください',
+      });
+      return;
     }
-  };
 
-  // デフォルト値にリセット
-  const handleReset = () => {
-    setConfig(getAPIConfig());
-    setValidation({ isValid: true, errors: [] });
-    setTestResult(null);
-  };
+    try {
+      // 個人API KEYで認証
+      await authService.authenticateWithPersonalKey(personalApiKey.trim());
+      
+      setTestResult({
+        success: true,
+        message: '個人API KEYが正常に保存されました',
+      });
+
+      // 設定を更新
+      const newConfig = getAPIConfig();
+      setConfig(newConfig);
+
+    } catch (error) {
+      console.error('個人API KEY保存エラー:', error);
+      setTestResult({
+        success: false,
+        message: error instanceof Error ? error.message : '個人API KEYの保存に失敗しました',
+      });
+    }
+  }, [personalApiKey, authService]);
+
+  // 企業認証に戻る
+  const switchToCorporateAuth = useCallback(async () => {
+    try {
+      // 企業パスワードで認証（すでに認証済みの場合）
+      if (corporateStatus.available) {
+        await authService.authenticateWithCorporatePassword('Negsetunum');
+        
+        setTestResult({
+          success: true,
+          message: '企業アカウントに切り替えました',
+        });
+
+        // 設定を更新
+        const newConfig = getAPIConfig();
+        setConfig(newConfig);
+      }
+    } catch (error) {
+      console.error('企業認証切り替えエラー:', error);
+      setTestResult({
+        success: false,
+        message: error instanceof Error ? error.message : '企業認証への切り替えに失敗しました',
+      });
+    }
+  }, [authService, corporateStatus]);
+
+  // 認証リセット
+  const resetAuth = useCallback(() => {
+    authService.clearApiKeyFromMemory();
+    setPersonalApiKey('');
+    setTestResult({
+      success: true,
+      message: '認証がリセットされました。初回セットアップ画面に戻ります。',
+    });
+    
+    // 少し待ってから閉じる
+    setTimeout(() => {
+      onClose();
+      window.location.reload();
+    }, 1500);
+  }, [authService, onClose]);
+
+  // タブ変更
+  const handleTabChange = useCallback((event: React.SyntheticEvent, newValue: number) => {
+    setCurrentTab(newValue);
+  }, []);
 
   return (
     <Dialog
@@ -127,222 +242,243 @@ export const APISettings: React.FC<APISettingsProps> = ({ open, onClose, onSave 
       maxWidth="md"
       fullWidth
       PaperProps={{
-        sx: {
-          borderRadius: 2,
-          maxHeight: '80vh',
-        },
+        sx: { minHeight: '500px' }
       }}
     >
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Settings sx={{ mr: 1, color: 'primary.main' }} />
-          <Typography variant="h6">API設定</Typography>
+      <DialogTitle>
+        <Box display="flex" alignItems="center" justifyContent="space-between">
+          <Box display="flex" alignItems="center" gap={1}>
+            <Settings color="primary" />
+            <Typography variant="h6">API設定</Typography>
+          </Box>
+          <IconButton onClick={onClose} size="small">
+            <Close />
+          </IconButton>
         </Box>
-        <IconButton onClick={onClose} size="small">
-          <Close />
-        </IconButton>
       </DialogTitle>
 
-      <DialogContent dividers sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {/* バリデーションエラー表示 */}
-          {!validation.isValid && (
-            <Alert severity="error">
-              <Typography variant="body2" component="div">
-                設定に問題があります:
-                <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
-                  {validation.errors.map((error, index) => (
-                    <li key={index}>{error}</li>
-                  ))}
-                </ul>
-              </Typography>
-            </Alert>
-          )}
+      <DialogContent>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+          <Tabs value={currentTab} onChange={handleTabChange}>
+            <Tab 
+              label="認証状態" 
+              icon={<Security />} 
+              iconPosition="start"
+            />
+            <Tab 
+              label="API設定" 
+              icon={<VpnKey />} 
+              iconPosition="start"
+            />
+            <Tab 
+              label="詳細設定" 
+              icon={<Settings />} 
+              iconPosition="start"
+            />
+          </Tabs>
+        </Box>
 
-          {/* 基本設定 */}
+        {/* 認証状態タブ */}
+        {currentTab === 0 && (
           <Box>
-            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-              <VpnKey sx={{ mr: 1 }} />
-              基本設定
+            <Typography variant="h6" gutterBottom>
+              現在の認証状態
             </Typography>
-
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <TextField
-                label="OpenAI APIキー"
-                value={config.openaiApiKey}
-                onChange={(e) => handleConfigChange('openaiApiKey', e.target.value)}
-                type="password"
-                fullWidth
-                required
-                helperText="OpenAI APIキーを入力してください"
-                error={!config.openaiApiKey && !validation.isValid}
-              />
-
-              <TextField
-                label="API Base URL"
-                value={config.baseUrl}
-                onChange={(e) => handleConfigChange('baseUrl', e.target.value)}
-                fullWidth
-                required
-                helperText="通常は変更不要です"
-              />
-
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <FormControl fullWidth>
-                  <InputLabel>音声認識モデル</InputLabel>
-                  <Select
-                    value={config.transcribeModel}
-                    label="音声認識モデル"
-                    onChange={(e) => handleConfigChange('transcribeModel', e.target.value)}
-                  >
-                    <MenuItem value="gpt-4o-transcribe">GPT-4o Transcribe</MenuItem>
-                    <MenuItem value="gpt-4o-mini-transcribe">GPT-4o Mini Transcribe</MenuItem>
-                  </Select>
-                </FormControl>
-
-                <FormControl fullWidth>
-                  <InputLabel>議事録生成モデル</InputLabel>
-                  <Select
-                    value={config.minutesModel}
-                    label="議事録生成モデル"
-                    onChange={(e) => handleConfigChange('minutesModel', e.target.value)}
-                  >
-                    <MenuItem value="o3-mini">o3-mini</MenuItem>
-                    <MenuItem value="o4-mini">o4-mini</MenuItem>
-                    <MenuItem value="gpt-4.1">GPT-4.1</MenuItem>
-                    <MenuItem value="gpt-4o">GPT-4o</MenuItem>
-                  </Select>
-                </FormControl>
-
-                <FormControl fullWidth>
-                  <InputLabel>音声合成モデル</InputLabel>
-                  <Select
-                    value={config.ttsModel}
-                    label="音声合成モデル"
-                    onChange={(e) => handleConfigChange('ttsModel', e.target.value)}
-                  >
-                    <MenuItem value="gpt-4o-mini-audio-preview">GPT-4o Mini Audio</MenuItem>
-                    <MenuItem value="gpt-4o-mini-realtime-preview">GPT-4o Mini Realtime</MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
-            </Box>
-          </Box>
-
-          <Divider />
-
-          {/* 詳細設定 */}
-          <Box>
-            <Typography variant="h6" sx={{ mb: 2 }}>
-              詳細設定
-            </Typography>
-
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <TextField
-                label="最大ファイルサイズ (MB)"
-                value={Math.round(config.maxFileSize / (1024 * 1024))}
-                onChange={(e) => handleConfigChange('maxFileSize', parseInt(e.target.value) * 1024 * 1024)}
-                type="number"
-                fullWidth
-                helperText="アップロード可能な最大ファイルサイズ"
-              />
-
-              <TextField
-                label="タイムアウト時間 (秒)"
-                value={config.timeoutDuration / 1000}
-                onChange={(e) => handleConfigChange('timeoutDuration', parseInt(e.target.value) * 1000)}
-                type="number"
-                fullWidth
-                helperText="API リクエストのタイムアウト時間"
-              />
-
-              <TextField
-                label="再試行回数"
-                value={config.retryAttempts}
-                onChange={(e) => handleConfigChange('retryAttempts', parseInt(e.target.value))}
-                type="number"
-                fullWidth
-                helperText="API リクエスト失敗時の再試行回数"
-              />
-
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={config.devMode}
-                      onChange={(e) => handleConfigChange('devMode', e.target.checked)}
-                    />
+            
+            <Card sx={{ mb: 2 }}>
+              <CardContent>
+                <Box display="flex" alignItems="center" gap={2} mb={2}>
+                  {config.useCorporateKey ? (
+                    <>
+                      <Business color="primary" />
+                      <Typography variant="h6">企業アカウント</Typography>
+                      <Chip label="アクティブ" color="success" size="small" />
+                    </>
+                  ) : (
+                    <>
+                      <Person color="primary" />
+                      <Typography variant="h6">個人アカウント</Typography>
+                      <Chip label="アクティブ" color="success" size="small" />
+                    </>
+                  )}
+                </Box>
+                
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  {config.useCorporateKey 
+                    ? '企業提供のAPI KEYを使用しています'
+                    : '個人のAPI KEYを使用しています'
                   }
-                  label="開発モード"
-                />
+                </Typography>
 
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={config.debugLogs}
-                      onChange={(e) => handleConfigChange('debugLogs', e.target.checked)}
-                    />
-                  }
-                  label="デバッグログ"
-                />
-              </Box>
-            </Box>
-          </Box>
-
-          <Divider />
-
-          {/* 接続テスト */}
-          <Box>
-            <Typography variant="h6" sx={{ mb: 2 }}>
-              接続テスト
-            </Typography>
-
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-              <Button
-                variant="outlined"
-                onClick={testConnection}
-                disabled={isTesting || !config.openaiApiKey}
-                startIcon={isTesting ? <Refresh className="animate-spin" /> : <CheckCircle />}
-              >
-                {isTesting ? 'テスト中...' : 'API接続テスト'}
-              </Button>
-
-              <Tooltip title="OpenAI APIとの接続を確認します">
-                <Info sx={{ color: 'text.secondary' }} />
-              </Tooltip>
-            </Box>
+                <Box mt={2}>
+                  <Button
+                    variant="outlined"
+                    onClick={testConnection}
+                    disabled={isTesting}
+                    startIcon={isTesting ? <CircularProgress size={16} /> : <Science />}
+                    sx={{ mr: 1 }}
+                  >
+                    {isTesting ? 'テスト中...' : 'API接続テスト'}
+                  </Button>
+                  
+                  <Button
+                    variant="outlined"
+                    color="warning"
+                    onClick={resetAuth}
+                    startIcon={<Refresh />}
+                  >
+                    認証リセット
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
 
             {testResult && (
-              <Alert severity={testResult.success ? 'success' : 'error'}>
+              <Alert 
+                severity={testResult.success ? 'success' : 'error'} 
+                sx={{ mb: 2 }}
+                icon={testResult.success ? <CheckCircle /> : <Error />}
+              >
                 {testResult.message}
+                {testResult.details && (
+                  <Box mt={1}>
+                    <Typography variant="caption" display="block">
+                      利用可能モデル数: {testResult.details.modelsCount}
+                    </Typography>
+                    <Typography variant="caption" display="block">
+                      認証方法: {testResult.details.authMethod}
+                    </Typography>
+                  </Box>
+                )}
               </Alert>
             )}
           </Box>
-        </Box>
+        )}
+
+        {/* API設定タブ */}
+        {currentTab === 1 && (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              API設定の切り替え
+            </Typography>
+
+            {corporateStatus.available && (
+              <Card sx={{ mb: 2 }}>
+                <CardHeader
+                  avatar={<Business />}
+                  title="企業アカウント"
+                  subheader="企業提供のAPI KEYを使用"
+                />
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    企業が提供するAPI KEYを使用します。追加の設定は不要です。
+                  </Typography>
+                  
+                  <Button
+                    variant={config.useCorporateKey ? "contained" : "outlined"}
+                    onClick={switchToCorporateAuth}
+                    disabled={config.useCorporateKey}
+                    startIcon={<Business />}
+                  >
+                    {config.useCorporateKey ? '使用中' : '企業アカウントに切り替え'}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader
+                avatar={<Person />}
+                title="個人アカウント"
+                subheader="個人のAPI KEYを使用"
+              />
+              <CardContent>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  個人で取得したOpenAI API KEYを使用します。
+                </Typography>
+                
+                <TextField
+                  fullWidth
+                  label="OpenAI API KEY"
+                  type="password"
+                  value={personalApiKey}
+                  onChange={(e) => setPersonalApiKey(e.target.value)}
+                  placeholder="sk-..."
+                  sx={{ mb: 2 }}
+                  helperText="個人のOpenAI API KEYを入力してください"
+                />
+                
+                <Button
+                  variant="contained"
+                  onClick={savePersonalApiKey}
+                  disabled={!personalApiKey.trim()}
+                  startIcon={<VpnKey />}
+                >
+                  個人API KEYを保存
+                </Button>
+              </CardContent>
+            </Card>
+          </Box>
+        )}
+
+        {/* 詳細設定タブ */}
+        {currentTab === 2 && (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              詳細設定
+            </Typography>
+
+            <Accordion expanded={showAdvanced} onChange={(e, expanded) => setShowAdvanced(expanded)}>
+              <AccordionSummary expandIcon={<ExpandMore />}>
+                <Typography>システム情報</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <List dense>
+                  <ListItem>
+                    <ListItemIcon><Info /></ListItemIcon>
+                    <ListItemText 
+                      primary="Base URL" 
+                      secondary={config.baseUrl}
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemIcon><Info /></ListItemIcon>
+                    <ListItemText 
+                      primary="音声認識モデル" 
+                      secondary={config.transcribeModel}
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemIcon><Info /></ListItemIcon>
+                    <ListItemText 
+                      primary="議事録生成モデル" 
+                      secondary={config.minutesModel}
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemIcon><Info /></ListItemIcon>
+                    <ListItemText 
+                      primary="音声合成モデル" 
+                      secondary={config.ttsModel}
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemIcon><Info /></ListItemIcon>
+                    <ListItemText 
+                      primary="企業KEY利用" 
+                      secondary={config.useCorporateKey ? 'はい' : 'いいえ'}
+                    />
+                  </ListItem>
+                </List>
+              </AccordionDetails>
+            </Accordion>
+          </Box>
+        )}
       </DialogContent>
 
-      <DialogActions sx={{ p: 2 }}>
-        <Button
-          onClick={handleReset}
-          startIcon={<Refresh />}
-          disabled={isTesting}
-        >
-          リセット
-        </Button>
-
-        <Box sx={{ flexGrow: 1 }} />
-
-        <Button onClick={onClose} disabled={isTesting}>
-          キャンセル
-        </Button>
-
-        <Button
-          onClick={handleSave}
-          variant="contained"
-          startIcon={<Save />}
-          disabled={!validation.isValid || isTesting}
-        >
-          保存
+      <DialogActions>
+        <Button onClick={onClose} variant="outlined">
+          閉じる
         </Button>
       </DialogActions>
     </Dialog>

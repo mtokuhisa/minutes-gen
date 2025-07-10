@@ -199,29 +199,61 @@ export const Results: React.FC<ResultsProps> = ({
     }
   };
 
-  // 表示用の改行処理された文字起こしテキスト
-  const getTranscriptionDisplayText = (): string => {
-    // 配列形式の文字起こしデータから表示用テキストを生成
-    if (Array.isArray(results.transcription)) {
-      return results.transcription
-        .map(segment => segment.text)
-        .join('\n\n');
-    }
-    
-    // 後方互換性のため、文字列形式もサポート
-    const rawText = results.transcription as string;
-    if (!rawText || typeof rawText !== 'string') {
+  // 時間と認識率の表記を除去するヘルパー関数
+  const cleanTranscriptionText = (text: string): string => {
+    if (!text || typeof text !== 'string') {
       return '';
     }
     
-    // 表示用の改行処理
+    return text
+      // [0:00 - 0:30] 95% のような表記を除去
+      .replace(/\[\d+:\d+\s*-\s*\d+:\d+\]\s*\d+%\s*/g, '')
+      // [00:00:00 - 00:00:30] 95% のような表記を除去
+      .replace(/\[\d+:\d+:\d+\s*-\s*\d+:\d+:\d+\]\s*\d+%\s*/g, '')
+      // その他の時間表記を除去
+      .replace(/\[\d+:\d+\]\s*/g, '')
+      .replace(/\[\d+:\d+:\d+\]\s*/g, '')
+      // 認識率のみの表記を除去
+      .replace(/\s*\d+%\s*/g, ' ')
+      // 複数の空白を1つに
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  // 表示用の改行処理された文字起こしテキスト
+  const getTranscriptionDisplayText = (): string => {
+    let rawText = '';
+    
+    // 配列形式の文字起こしデータから表示用テキストを生成
+    if (Array.isArray(results.transcription)) {
+      rawText = results.transcription
+        .map(segment => cleanTranscriptionText(segment.text))
+        .filter(text => text && text.trim().length > 0)
+        .join('\n\n');
+    } else {
+      // 後方互換性のため、文字列形式もサポート
+      rawText = results.transcription as string;
+      if (!rawText || typeof rawText !== 'string') {
+        return '';
+      }
+      rawText = cleanTranscriptionText(rawText);
+    }
+    
+    // 表示用の改行処理（読みやすさを重視）
     return rawText
+      // 句読点での改行
       .replace(/([。！？])\s*/g, '$1\n\n')
+      // 長い文での適切な改行
       .replace(/(.{60,}?)([、])/g, '$1$2\n')
+      // 敬語での改行
       .replace(/(です|ます|である|だった|でした|ました|ません|でしょう)([。、]?)\s*/g, '$1$2\n')
+      // 接続詞での改行
       .replace(/\s*(そして|また|しかし|ただし|なお|さらに|一方|他方|つまり|すなわち|要するに|このように|このため|したがって|ゆえに)/g, '\n\n$1')
+      // 長すぎる行での改行
       .replace(/(.{80,}?)(\s)/g, '$1\n')
+      // 過度な改行を整理
       .replace(/\n{4,}/g, '\n\n')
+      // 行頭の空白を除去
       .replace(/^\s+/gm, '')
       .trim();
   };
@@ -244,8 +276,6 @@ export const Results: React.FC<ResultsProps> = ({
   day: 'numeric',
   weekday: 'long'
 })}
-
-**所要時間**: ${formatDuration(results.duration)}
 
 **文字数**: ${lines.join('').length}文字
 
@@ -330,8 +360,8 @@ ${lines.join('\n\n')}
 
   const generateEnhancedHTML = (minutesData: MinutesData): string => {
     const transcriptionText = Array.isArray(minutesData.transcription) 
-      ? minutesData.transcription.map(segment => segment.text).join('\n')
-      : minutesData.transcription;
+      ? minutesData.transcription.map(segment => cleanTranscriptionText(segment.text)).join('\n')
+      : cleanTranscriptionText(minutesData.transcription as string);
 
     return `
 <!DOCTYPE html>
@@ -615,7 +645,7 @@ ${lines.join('\n\n')}
                         <div class="key-point">
                             <span class="importance ${kp.importance}">${kp.importance}</span>
                             <div>${kp.content}</div>
-                            <small style="color: #666;">時刻: ${Math.floor(kp.timestamp / 60)}:${String(kp.timestamp % 60).padStart(2, '0')}</small>
+
                         </div>
                     `).join('')}
                 </div>
@@ -644,7 +674,7 @@ ${lines.join('\n\n')}
                         <div class="participant">
                             <div class="name">${p.name}</div>
                             <div class="role">${p.role || '参加者'}</div>
-                            <div class="speaking-time">${Math.floor(p.speakingTime / 60)}:${String(p.speakingTime % 60).padStart(2, '0')}</div>
+
                         </div>
                     `).join('')}
                 </div>
@@ -668,8 +698,8 @@ ${lines.join('\n\n')}
 
   const generateFormattedMinutes = (minutesData: MinutesData): string => {
     const transcriptionText = Array.isArray(minutesData.transcription) 
-      ? minutesData.transcription.map(segment => segment.text).join('\n')
-      : minutesData.transcription;
+      ? minutesData.transcription.map(segment => cleanTranscriptionText(segment.text)).join('\n')
+      : cleanTranscriptionText(minutesData.transcription as string);
 
     return `
       <h1>${minutesData.title}</h1>
@@ -681,7 +711,7 @@ ${lines.join('\n\n')}
         day: 'numeric',
         weekday: 'long'
       })}</p>
-      <p><strong>所要時間:</strong> ${formatDuration(minutesData.duration)}</p>
+
       <p><strong>参加者:</strong> ${minutesData.participants.map(p => p.name).join(', ')}</p>
       
       <h2>📝 議事録サマリー</h2>
@@ -692,7 +722,7 @@ ${lines.join('\n\n')}
         ${minutesData.keyPoints.map(kp => `
           <li>
             <strong>${kp.content}</strong>
-            <br><em>重要度: ${kp.importance} | 時刻: ${formatDuration(kp.timestamp)}</em>
+            <br><em>重要度: ${kp.importance}</em>
           </li>
         `).join('')}
       </ul>
@@ -713,7 +743,6 @@ ${lines.join('\n\n')}
           <tr>
             <th>氏名</th>
             <th>役職</th>
-            <th>発言時間</th>
           </tr>
         </thead>
         <tbody>
@@ -721,7 +750,6 @@ ${lines.join('\n\n')}
             <tr>
               <td>${p.name}</td>
               <td>${p.role || '参加者'}</td>
-              <td>${formatDuration(p.speakingTime)}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -739,32 +767,8 @@ ${lines.join('\n\n')}
     
     switch (format) {
       case 'markdown':
-        return `# ${results.title}
-
-## 📋 会議概要
-- **開催日時**: ${results.date.toLocaleDateString('ja-JP')}
-- **所要時間**: ${formatDuration(results.duration)}
-- **参加者**: ${results.participants.map(p => p.name).join(', ')}
-
-## 📝 議事録サマリー
-${results.summary}
-
-## ⭐ 主要なポイント
-${results.keyPoints.map(kp => `- **${kp.content}** (重要度: ${kp.importance}, 時刻: ${formatDuration(kp.timestamp)})`).join('\n')}
-
-## ✅ アクション項目
-${results.actionItems.map(ai => `- [ ] **${ai.task}** (担当: ${ai.assignee || '未定'}, 優先度: ${ai.priority}, 期限: ${ai.dueDate ? ai.dueDate.toLocaleDateString() : '未定'})`).join('\n')}
-
-## 👥 参加者詳細
-${results.participants.map(p => `- **${p.name}** (${p.role || '参加者'}) - 発言時間: ${formatDuration(p.speakingTime)}`).join('\n')}
-
-## 🎤 文字起こし
-\`\`\`
-${transcriptionText}
-\`\`\`
-
----
-*Generated by MinutesGen v1.0 - ${new Date().toLocaleDateString('ja-JP')}*`;
+        // 実際の出力内容を使用
+        return output.content || getMarkdownMinutes();
       case 'html':
         return generateEnhancedHTML(results);
       case 'word':
@@ -878,18 +882,13 @@ ${transcriptionText}
                 {results.title}
               </Typography>
               <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                {results.summary}
+                {results.summary.length > 50 ? results.summary.substring(0, 50) + '...' : results.summary}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Chip
-                icon={<People />}
-                label={`${results.participants.length}名参加`}
-                sx={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', color: 'white' }}
-              />
-              <Chip
-                icon={<AccessTime />}
-                label={formatDuration(results.duration)}
+                icon={<Schedule />}
+                label={results.date.toLocaleDateString('ja-JP')}
                 sx={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', color: 'white' }}
               />
             </Box>
@@ -992,12 +991,7 @@ ${transcriptionText}
             
             {/* 統計情報 */}
             <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
-              <Chip
-                icon={<Schedule />}
-                label={`総時間: ${formatDuration(results.duration)}`}
-                variant="outlined"
-                size="small"
-              />
+
               <Chip
                 icon={<Description />}
                 label={`文字数: ${getTranscriptionDisplayText().replace(/\n/g, '').length}文字`}
@@ -1016,7 +1010,7 @@ ${transcriptionText}
                 overflow: 'auto',
                 fontFamily: 'monospace',
                 fontSize: '0.9rem',
-                lineHeight: 1.6,
+                lineHeight: 1.3, // 行間を半分に（1.6から1.3に）
               }}
             >
               {Array.isArray(results.transcription) ? (
@@ -1030,28 +1024,9 @@ ${transcriptionText}
                         mb: 0.5,
                         flexWrap: 'wrap'
                       }}>
-                        <Typography variant="caption" color="primary.main" sx={{ fontWeight: 600 }}>
-                          [{formatDuration(segment.startTime || 0)} - {formatDuration(segment.endTime || 0)}]
-                        </Typography>
-                        {segment.speakerId && (
-                          <Chip
-                            label={`話者 ${segment.speakerId}`}
-                            size="small"
-                            variant="outlined"
-                            sx={{ fontSize: '0.7rem', height: 20 }}
-                          />
-                        )}
-                        {segment.confidence && (
-                          <Chip
-                            label={`${Math.round(segment.confidence * 100)}%`}
-                            size="small"
-                            color={segment.confidence > 0.8 ? 'success' : segment.confidence > 0.6 ? 'warning' : 'error'}
-                            sx={{ fontSize: '0.7rem', height: 20 }}
-                          />
-                        )}
                         <IconButton
                           size="small"
-                          onClick={() => handleCopySegment(segment.text)}
+                          onClick={() => handleCopySegment(cleanTranscriptionText(segment.text))}
                           sx={{ ml: 'auto', opacity: 0.6, '&:hover': { opacity: 1 } }}
                         >
                           <ContentCopy sx={{ fontSize: 14 }} />
@@ -1067,7 +1042,7 @@ ${transcriptionText}
                           borderRadius: '0 4px 4px 0'
                         }}
                       >
-                        {segment.text.split('\n').map((line: string, lineIndex: number) => (
+                        {cleanTranscriptionText(segment.text).split('\n').map((line: string, lineIndex: number) => (
                           <Box key={lineIndex} sx={{ mb: line.trim() === '' ? 1 : 0.5 }}>
                             {line.trim() === '' ? <br /> : (
                               <Typography variant="body2" component="span" sx={{ display: 'block' }}>
@@ -1084,7 +1059,7 @@ ${transcriptionText}
                 <Box
                   sx={{ 
                     margin: 0,
-                    lineHeight: 1.8,
+                    lineHeight: 1.3, // 行間を半分に（1.8から1.3に）
                     fontFamily: 'inherit',
                     wordBreak: 'break-word',
                     overflowWrap: 'break-word',
@@ -1123,7 +1098,7 @@ ${transcriptionText}
                   <Button
                     variant="outlined"
                     startIcon={<ContentCopy />}
-                    onClick={() => handleCopyToClipboard(results.summary)}
+                    onClick={() => handleCopyToClipboard(getMarkdownMinutes())}
                     size="small"
                   >
                     コピー

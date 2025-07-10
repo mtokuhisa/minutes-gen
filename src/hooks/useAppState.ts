@@ -1,117 +1,131 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import {
-  AppState,
-  AudioFile,
-  ProcessingOptions,
-  ProcessingProgress,
-  MinutesData,
-  AppError,
-  ProcessingStage,
-  DEFAULT_PROCESSING_OPTIONS,
-} from '../types';
+// ===========================================
+// MinutesGen v1.0 - アプリケーション状態管理フック（認証統合）
+// ===========================================
+
+import { useState, useCallback, useEffect } from 'react';
 import { 
-  InfographicConfig, 
-  InfographicOutput, 
-  InfographicGenerationProgress 
-} from '../types/infographic';
+  AudioFile, 
+  ProcessingOptions, 
+  MinutesData, 
+  ProcessingProgress, 
+  AppError,
+  InfographicConfig,
+  InfographicOutput,
+  InfographicGenerationProgress,
+} from '../types';
 import { OpenAIService } from '../services/openai';
+import { AuthService } from '../services/authService';
 import { APIConfig, getAPIConfig, saveAPIConfig } from '../config/api';
 
-// ===========================================
-// MinutesGen v1.0 - アプリケーション状態管理フック
-// ===========================================
-
-interface UseAppStateReturn extends AppState {
+export interface AppState {
+  // 基本状態
+  currentStep: number;
+  selectedFile: AudioFile | null;
+  processingOptions: ProcessingOptions;
+  results: MinutesData | null;
+  error: AppError | null;
+  isProcessing: boolean;
+  
+  // 進捗状態
+  progress: ProcessingProgress | null;
+  
+  // API設定
   apiConfig: APIConfig;
-  // アクション関数
-  setCurrentStep: (step: number) => void;
-  setSelectedFile: (file: AudioFile | null) => void;
-  setProcessingOptions: React.Dispatch<React.SetStateAction<ProcessingOptions>>;
-  setApiConfig: (config: Partial<APIConfig>) => void;
-  startProcessing: () => Promise<void>;
-  resetState: () => void;
-  clearError: () => void;
+  isApiConfigured: boolean;
   
-  // インフォグラフィック関連
-  setInfographicConfig: (config: InfographicConfig) => void;
-  setInfographicOutput: (output: InfographicOutput | null) => void;
-  setInfographicGenerating: (isGenerating: boolean) => void;
-  setInfographicProgress: (progress: InfographicGenerationProgress | null) => void;
-  setInfographicError: (error: string | null) => void;
-  
-  // ユーティリティ関数
-  canProceedToNextStep: () => boolean;
-  getTotalSteps: () => number;
-  getStepName: (step: number) => string;
-}
-
-export const useAppState = (): UseAppStateReturn => {
-  // 基本状態 - 順序を固定化
-  const [currentStep, setCurrentStep] = useState<number>(0);
-  const [selectedFile, setSelectedFile] = useState<AudioFile | null>(null);
-  const [processingOptions, setProcessingOptions] = useState<ProcessingOptions>(
-    DEFAULT_PROCESSING_OPTIONS
-  );
-  const [progress, setProgress] = useState<ProcessingProgress | null>(null);
-  const [results, setResults] = useState<MinutesData | null>(null);
-  const [error, setError] = useState<AppError | null>(null);
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [apiConfig, setApiConfigState] = useState<APIConfig>(getAPIConfig());
-  
-  // インフォグラフィック関連の状態 - 順序を固定化
-  const [infographic, setInfographic] = useState<{
+  // インフォグラフィック
+  infographic: {
     config: InfographicConfig | null;
     output: InfographicOutput | null;
     isGenerating: boolean;
     progress: InfographicGenerationProgress | null;
-    error: string | null;
-  }>({
+  };
+}
+
+export const useAppState = () => {
+  // 認証サービス
+  const [authService] = useState(() => AuthService.getInstance());
+  
+  // 状態管理
+  const [currentStep, setCurrentStep] = useState(0);
+  const [selectedFile, setSelectedFile] = useState<AudioFile | null>(null);
+  const [processingOptions, setProcessingOptions] = useState<ProcessingOptions>({
+    // speed: 'normal', // 削除（1倍速固定）
+    // quality: 'standard', // 削除
+    // outputFormats: ['markdown'], // 削除（3形式同時生成）
+    language: 'ja',
+    // speakerDetection: true, // 削除
+    punctuation: true,
+    timestamps: false,
+    customPrompt: '',
+    minutesModel: 'gpt-4.1',
+    selectedPrompt: null,
+    promptType: 'preset',
+  });
+  const [results, setResults] = useState<MinutesData | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState<ProcessingProgress | null>(null);
+  
+  // API設定管理
+  const [apiConfig, setApiConfigState] = useState<APIConfig>(getAPIConfig());
+  const [isApiConfigured, setIsApiConfigured] = useState(false);
+  
+  // インフォグラフィック状態
+  const [infographic, setInfographic] = useState<AppState['infographic']>({
     config: null,
     output: null,
     isGenerating: false,
     progress: null,
-    error: null,
   });
 
-  // useMemoを最初に配置して順序を固定化
-  const openAIService = useMemo(() => new OpenAIService(), []);
-  const stepNames = useMemo(() => ['アップロード', 'オプション設定', 'AI処理', '結果確認'], []);
+  // OpenAI サービス
+  const [openAIService] = useState(() => new OpenAIService());
 
-  // 設定更新関数
-  const setApiConfig = useCallback((newConfig: Partial<APIConfig>) => {
-    setApiConfigState(prevConfig => {
-      const updatedConfig = { ...prevConfig, ...newConfig };
-      saveAPIConfig(updatedConfig);
-      return updatedConfig;
-    });
-  }, []);
+  // 初期化時に認証状態をチェック
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      const isAuthenticated = authService.isAuthenticated();
+      setIsApiConfigured(isAuthenticated);
+      
+      if (!isAuthenticated) {
+        // 初回起動時は認証画面を表示するため、ステップ0に設定
+        setCurrentStep(0);
+      } else {
+        // 認証済みの場合はファイル選択画面に進む
+        setCurrentStep(0);
+      }
+    };
+    
+    checkAuthStatus();
+  }, [authService]);
 
-  // エラークリア
-  const clearError = useCallback(() => {
-    setError(null);
-  }, []);
+  // API設定の更新
+  const updateApiConfig = useCallback((newConfig: Partial<APIConfig>) => {
+    const updatedConfig = { ...apiConfig, ...newConfig };
+    setApiConfigState(updatedConfig);
+    saveAPIConfig(updatedConfig);
+  }, [apiConfig]);
 
-  // 次のステップに進めるかどうかの判定
-  const canProceedToNextStep = useCallback(() => {
-    switch (currentStep) {
-      case 0: // アップロード
-        return selectedFile !== null;
-      case 1: // オプション設定
-        // 出力形式が選択されていて、かつAPIキーが設定されている
-        return processingOptions.outputFormats.length > 0 && 
-               !!apiConfig.openaiApiKey && 
-               apiConfig.openaiApiKey.trim() !== '';
-      case 2: // 処理中
-        return false; // 処理中は進めない
-      case 3: // 結果
-        return false; // 最終ステップ
-      default:
-        return false;
+  // 認証状態の確認
+  const checkAuthentication = useCallback(async (): Promise<boolean> => {
+    try {
+      const isAuthenticated = authService.isAuthenticated();
+      const hasApiKey = await authService.getApiKey();
+      
+      const isConfigured = isAuthenticated && !!hasApiKey;
+      setIsApiConfigured(isConfigured);
+      
+      return isConfigured;
+    } catch (error) {
+      console.error('認証確認エラー:', error);
+      setIsApiConfigured(false);
+      return false;
     }
-  }, [currentStep, selectedFile, processingOptions, apiConfig]);
+  }, [authService]);
 
-  // 処理開始
-  const startProcessing = useCallback(async () => {
+  // 処理の実行
+  const processAudio = useCallback(async () => {
     if (!selectedFile) {
       setError({
         id: Date.now().toString(),
@@ -123,15 +137,17 @@ export const useAppState = (): UseAppStateReturn => {
       return;
     }
 
-    if (!apiConfig.openaiApiKey) {
+    // 認証確認
+    const isAuthenticated = await checkAuthentication();
+    if (!isAuthenticated) {
       setError({
         id: Date.now().toString(),
-        code: 'NO_API_KEY',
-        message: 'OpenAI APIキーが設定されていません。設定画面からキーを登録してください。',
+        code: 'NO_AUTH',
+        message: '認証が必要です。初回セットアップを完了してください。',
         timestamp: new Date(),
         recoverable: true,
       });
-      setCurrentStep(1); // 設定画面に戻す
+      setCurrentStep(0); // 認証画面に戻す
       return;
     }
 
@@ -140,13 +156,41 @@ export const useAppState = (): UseAppStateReturn => {
     setCurrentStep(2);
 
     try {
-      // 実際のAPI処理を使用
-      // 音声文字起こし
-      const transcription = await openAIService.transcribeAudio(
-        selectedFile,
-        processingOptions,
-        setProgress
-      );
+      let transcription: string;
+      
+      // ファイルタイプに応じた処理
+      if (selectedFile.metadata?.fileType === 'document') {
+        // 文書ファイルの場合は文字起こしをスキップして直接議事録生成
+        const documentText = selectedFile.metadata.documentText || '';
+        if (!documentText.trim()) {
+          setError({
+            id: Date.now().toString(),
+            code: 'EMPTY_DOCUMENT',
+            message: '文書ファイルの内容が空です。内容のあるファイルを選択してください。',
+            timestamp: new Date(),
+            recoverable: true,
+          });
+          return;
+        }
+        
+        // 文書ファイルの場合は少し待機してからAPI呼び出し（429エラー対策）
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        transcription = documentText;
+        setProgress({
+          stage: '文字起こし完了',
+          percentage: 50,
+          currentStep: 2,
+          totalSteps: 3,
+          estimatedTimeRemaining: 60,
+          startTime: new Date(),
+        });
+      } else {
+        // 音声・動画ファイルの場合は通常の文字起こし処理
+        transcription = await openAIService.transcribeAudio(selectedFile, processingOptions, (progress) => {
+          setProgress(progress);
+        });
+      }
 
       // 議事録生成
       const minutes = await openAIService.generateMinutes(
@@ -160,6 +204,20 @@ export const useAppState = (): UseAppStateReturn => {
 
     } catch (err: any) {
       console.error('処理エラー:', err);
+      
+      // 認証エラーの場合は特別な処理
+      if (err.message?.includes('認証に失敗') || err.message?.includes('再度ログイン')) {
+        setError({
+          id: Date.now().toString(),
+          code: 'AUTH_FAILED',
+          message: '認証に失敗しました。再度ログインしてください。',
+          timestamp: new Date(),
+          recoverable: true,
+        });
+        setCurrentStep(0); // 認証画面に戻す
+        return;
+      }
+      
       const errorMessage = err.response?.data?.error?.message || err.message || '不明なエラーが発生しました';
       setError({
         id: Date.now().toString(),
@@ -173,153 +231,139 @@ export const useAppState = (): UseAppStateReturn => {
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedFile, processingOptions, apiConfig, openAIService]);
+  }, [selectedFile, processingOptions, openAIService, checkAuthentication]);
 
   // インフォグラフィック関連のアクション
   const setInfographicConfig = useCallback((config: InfographicConfig) => {
     setInfographic(prev => ({ ...prev, config }));
   }, []);
 
-  const setInfographicOutput = useCallback((output: InfographicOutput | null) => {
-    setInfographic(prev => ({ ...prev, output }));
-  }, []);
+  const generateInfographic = useCallback(async () => {
+    if (!results || !infographic.config) return;
 
-  const setInfographicGenerating = useCallback((isGenerating: boolean) => {
-    setInfographic(prev => ({ ...prev, isGenerating }));
-  }, []);
+    setInfographic(prev => ({ ...prev, isGenerating: true }));
+    
+    try {
+      // 認証確認
+      const isAuthenticated = await checkAuthentication();
+      if (!isAuthenticated) {
+        throw new Error('認証が必要です。初回セットアップを完了してください。');
+      }
 
-  const setInfographicProgress = useCallback((progress: InfographicGenerationProgress | null) => {
-    setInfographic(prev => ({ ...prev, progress }));
-  }, []);
+      const { InfographicGenerator } = await import('../services/infographicGenerator');
+      const generator = new InfographicGenerator();
+      
+      const html = await generator.generateInfographic(
+        results,
+        infographic.config,
+        (progress) => {
+          setInfographic(prev => ({
+            ...prev,
+            progress: {
+              stage: 'generating',
+              percentage: progress,
+              currentTask: 'インフォグラフィック生成中...',
+              estimatedTimeRemaining: 0,
+            }
+          }));
+        }
+      );
 
-  const setInfographicError = useCallback((error: string | null) => {
-    setInfographic(prev => ({ ...prev, error }));
-  }, []);
+      setInfographic(prev => ({
+        ...prev,
+        output: {
+          html,
+          metadata: {
+            pageCount: 1,
+            dimensions: { width: 800, height: 600 },
+            generatedAt: new Date(),
+            config: infographic.config!,
+          },
+        },
+        isGenerating: false,
+        progress: null,
+      }));
 
-  // 状態リセット
-  const resetState = useCallback(() => {
-    setCurrentStep(0);
+    } catch (error) {
+      console.error('インフォグラフィック生成エラー:', error);
+      setError({
+        id: Date.now().toString(),
+        code: 'INFOGRAPHIC_FAILED',
+        message: error instanceof Error ? error.message : 'インフォグラフィックの生成に失敗しました',
+        timestamp: new Date(),
+        recoverable: true,
+      });
+      setInfographic(prev => ({ ...prev, isGenerating: false, progress: null }));
+    }
+  }, [results, infographic.config, checkAuthentication]);
+
+  // リセット機能
+  const resetApp = useCallback(() => {
     setSelectedFile(null);
-    setProcessingOptions(DEFAULT_PROCESSING_OPTIONS);
-    setProgress(null);
     setResults(null);
     setError(null);
-    setIsProcessing(false);
+    setProgress(null);
     setInfographic({
       config: null,
       output: null,
       isGenerating: false,
       progress: null,
-      error: null,
     });
+    setCurrentStep(1);
   }, []);
 
-  // ユーティリティ関数
-  const getTotalSteps = useCallback(() => stepNames.length, [stepNames]);
-  const getStepName = useCallback((step: number) => stepNames[step] || '', [stepNames]);
+  // 認証リセット
+  const resetAuth = useCallback(() => {
+    authService.clearApiKeyFromMemory();
+    setIsApiConfigured(false);
+    setCurrentStep(0);
+  }, [authService]);
 
-  // エラーの自動クリア（10秒後）
-  useEffect(() => {
-    if (error && error.recoverable) {
-      const timer = setTimeout(() => {
-        clearError();
-      }, 10000);
-      return () => clearTimeout(timer);
+  // 次のステップに進めるかチェック
+  const canProceedToNextStep = useCallback(() => {
+    if (currentStep === 0) {
+      return selectedFile !== null;
     }
-  }, [error, clearError]);
+    if (currentStep === 1) {
+      return isApiConfigured;
+    }
+    return false;
+  }, [currentStep, selectedFile, isApiConfigured]);
 
-  // 状態の返却
+  // エラーをクリア
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
   return {
     // 状態
     currentStep,
     selectedFile,
     processingOptions,
-    progress,
     results,
     error,
     isProcessing,
+    progress,
     apiConfig,
+    isApiConfigured,
     infographic,
-
+    
     // アクション
     setCurrentStep,
     setSelectedFile,
     setProcessingOptions,
-    setApiConfig,
-    startProcessing,
-    resetState,
+    setResults,
+    setError,
     clearError,
-
-    // インフォグラフィック関連
-    setInfographicConfig,
-    setInfographicOutput,
-    setInfographicGenerating,
-    setInfographicProgress,
-    setInfographicError,
-
-    // ユーティリティ
+    updateApiConfig,
+    processAudio,
+    resetApp,
+    resetAuth,
+    checkAuthentication,
     canProceedToNextStep,
-    getTotalSteps,
-    getStepName,
+    
+    // インフォグラフィック
+    setInfographicConfig,
+    generateInfographic,
   };
-};
-
-// ===========================================
-// 処理シミュレーション関数
-// ===========================================
-
-const simulateProcessing = async (
-  setProgress: React.Dispatch<React.SetStateAction<ProcessingProgress | null>>
-): Promise<void> => {
-  const stages: { stage: ProcessingStage; task: string; duration: number }[] = [
-    { stage: 'uploading', task: 'ファイルをアップロード中...', duration: 2000 },
-    { stage: 'analyzing', task: '音声を解析中...', duration: 3000 },
-    { stage: 'transcribing', task: '音声を文字起こし中...', duration: 8000 },
-    { stage: 'generating', task: '議事録を生成中...', duration: 5000 },
-    { stage: 'formatting', task: '出力を整形中...', duration: 2000 },
-    { stage: 'completed', task: '処理完了！', duration: 0 },
-  ];
-
-  const totalDuration = stages.reduce((sum, stage) => sum + stage.duration, 0);
-  let elapsedTime = 0;
-
-  for (let i = 0; i < stages.length; i++) {
-    const stage = stages[i];
-    const startTime = Date.now();
-
-    // ステージ開始
-    setProgress(prev => prev ? {
-      ...prev,
-      stage: stage.stage,
-      currentTask: stage.task,
-      percentage: Math.round((elapsedTime / totalDuration) * 100),
-      estimatedTimeRemaining: Math.round((totalDuration - elapsedTime) / 1000),
-      logs: [
-        ...prev.logs,
-        {
-          id: Date.now().toString(),
-          timestamp: new Date(),
-          level: 'info',
-          message: stage.task,
-        },
-      ],
-    } : null);
-
-    // プログレス更新
-    if (stage.duration > 0) {
-      const steps = 10;
-      const stepDuration = stage.duration / steps;
-
-      for (let step = 0; step < steps; step++) {
-        await new Promise(resolve => setTimeout(resolve, stepDuration));
-        elapsedTime += stepDuration;
-
-        setProgress(prev => prev ? {
-          ...prev,
-          percentage: Math.min(Math.round((elapsedTime / totalDuration) * 100), 100),
-          estimatedTimeRemaining: Math.max(Math.round((totalDuration - elapsedTime) / 1000), 0),
-        } : null);
-      }
-    }
-  }
 }; 

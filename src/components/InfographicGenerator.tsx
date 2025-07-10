@@ -95,10 +95,10 @@ export const InfographicGenerator: React.FC<InfographicGeneratorProps> = ({
     }
   }, [themeMode, config.tone.type]);
 
-  // 進捗コールバック設定
-  useEffect(() => {
-    infographicGenerator.setProgressCallback(setProgress);
-  }, []);
+  // 進捗コールバック設定は不要（generateInfographicメソッドで直接onProgressを渡すため）
+  // useEffect(() => {
+  //   infographicGenerator.setProgressCallback(setProgress);
+  // }, []);
 
   /**
    * トーン設定変更
@@ -172,21 +172,59 @@ export const InfographicGenerator: React.FC<InfographicGeneratorProps> = ({
    * インフォグラフィック生成
    */
   const handleGenerate = async () => {
-    if (!minutesContent.trim()) {
-      setError('議事録の内容がありません。');
-      return;
-    }
-
     setIsGenerating(true);
     setError(null);
     setProgress(null);
 
     try {
-      const result = await infographicGenerator.generateInfographic(minutesContent, config);
+      const htmlResult = await infographicGenerator.generateInfographic(minutesContent, config, (progressValue: number) => {
+        setProgress({
+          stage: 'generating',
+          percentage: progressValue,
+          currentTask: progressValue < 30 ? 'トーン分析中...' : progressValue < 60 ? '情報量調整中...' : 'HTML生成中...',
+          estimatedTimeRemaining: 30 - (progressValue / 100) * 30
+        });
+      });
+      
+      const result: InfographicOutput = {
+        html: htmlResult,
+        metadata: {
+          pageCount: 1,
+          dimensions: { width: 800, height: 1200 },
+          generatedAt: new Date(),
+          config: config
+        }
+      };
+      
       setOutput(result);
       onGenerated?.(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '生成に失敗しました。');
+      console.error('インフォグラフィック生成エラー:', err);
+      
+      // エラーメッセージを詳細化
+      let errorMessage = '生成に失敗しました。';
+      
+      if (err instanceof Error) {
+        if (err.message.includes('API key')) {
+          errorMessage = 'APIキーが設定されていません。設定画面で確認してください。';
+        } else if (err.message.includes('URL分析')) {
+          errorMessage = 'URL分析に失敗しました。URLを確認するか、別のトーン設定をお試しください。';
+        } else if (err.message.includes('画像分析')) {
+          errorMessage = '画像分析に失敗しました。画像ファイルを確認するか、別のトーン設定をお試しください。';
+        } else if (err.message.includes('Network')) {
+          errorMessage = 'ネットワークエラーが発生しました。インターネット接続を確認してください。';
+        } else if (err.message.includes('401') || err.message.includes('Unauthorized')) {
+          errorMessage = 'APIキーが無効です。設定画面で正しいAPIキーを設定してください。';
+        } else if (err.message.includes('429') || err.message.includes('Rate limit')) {
+          errorMessage = 'API利用制限に達しました。しばらく待ってから再試行してください。';
+        } else if (err.message.includes('500') || err.message.includes('Internal Server Error')) {
+          errorMessage = 'サーバーエラーが発生しました。しばらく待ってから再試行してください。';
+        } else {
+          errorMessage = `生成エラー: ${err.message}`;
+        }
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsGenerating(false);
       setProgress(null);
@@ -505,11 +543,11 @@ export const InfographicGenerator: React.FC<InfographicGeneratorProps> = ({
                   </Typography>
                   <LinearProgress 
                     variant="determinate" 
-                    value={progress.percentage} 
+                    value={progress.percentage || 0} 
                     sx={{ mt: 1 }}
                   />
                   <Typography variant="caption" color="textSecondary">
-                    {progress.percentage}%
+                    {progress.percentage || 0}%
                   </Typography>
                 </Box>
               )}

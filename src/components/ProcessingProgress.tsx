@@ -133,20 +133,21 @@ export const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
 }) => {
   const [logsExpanded, setLogsExpanded] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [fixedStartTime] = useState(progress.startedAt); // 最初の時間で固定
 
   const currentStage = stageConfig[progress.stage];
   const isCompleted = progress.stage === 'completed';
   const hasError = progress.stage === 'error';
 
-  // 経過時間の計算
+  // 経過時間の計算（固定された開始時刻を使用）
   useEffect(() => {
     const timer = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - progress.startedAt.getTime()) / 1000);
+      const elapsed = Math.floor((Date.now() - fixedStartTime.getTime()) / 1000);
       setElapsedTime(elapsed);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [progress.startedAt]);
+  }, [fixedStartTime]);
 
   // ステージの順序定義
   const stages = ['uploading', 'analyzing', 'transcribing', 'generating', 'formatting', 'completed'];
@@ -200,7 +201,7 @@ export const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
             />
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                開始時刻: {progress.startedAt.toLocaleTimeString()}
+                開始時刻: {fixedStartTime.toLocaleTimeString()}
               </Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                         {progress.stage === 'transcribing' && progress.currentTask.includes('ffmpeg.wasm')
