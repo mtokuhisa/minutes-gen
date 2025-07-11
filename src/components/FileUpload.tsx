@@ -263,6 +263,15 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   const processFile = useCallback(async (file: File) => {
     console.log('processFile開始:', file.name, file.size, file.type);
     
+    // 大容量ファイル（500MB以上）の場合は事前警告
+    if (file.size > 500 * 1024 * 1024) {
+      console.log('🔥 大容量ファイル検出:', {
+        fileName: file.name,
+        fileSize: `${Math.round(file.size / 1024 / 1024)}MB`,
+        processingNote: '大容量ファイル用の最適化処理を適用します'
+      });
+    }
+    
     try {
       const validation = validateFile(file);
       const fileType = getFileType(file.name);
@@ -272,8 +281,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         return;
       }
 
-      // 音声・動画ファイルの場合のみデコード判定
-      if (fileType !== 'document') {
+      // 大容量ファイル（500MB以上）の場合はデコード確認をスキップ
+      if (fileType !== 'document' && file.size < 500 * 1024 * 1024) {
         try {
           const decodable = await checkAudioDecodable(file);
           if (!decodable) {
@@ -284,6 +293,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           console.error('デコード確認エラー:', error);
           // デコード確認でエラーが発生してもファイル処理は続行
         }
+      } else if (file.size >= 500 * 1024 * 1024) {
+        console.log('🔥 大容量ファイルのためデコード確認をスキップ');
       }
     } catch (error) {
       console.error('ファイル検証エラー:', error);
@@ -297,17 +308,20 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
     try {
       const fileType = getFileType(file.name);
+      const isLargeFile = file.size > 300 * 1024 * 1024;
       
-      // アップロード進捗のシミュレーション
+      // 大容量ファイルの場合は進捗を遅くして、処理時間を反映
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 100) {
             clearInterval(progressInterval);
             return 100;
           }
-          return prev + Math.random() * 10;
+          // 大容量ファイルの場合は進捗を遅くする
+          const increment = isLargeFile ? Math.random() * 3 : Math.random() * 10;
+          return Math.min(prev + increment, 95); // 95%で一旦停止（実際の処理完了まで）
         });
-      }, 200);
+      }, isLargeFile ? 1000 : 200); // 大容量ファイルは1秒間隔
 
       // ファイル情報の取得
       let blobUrl: string | null = null;
@@ -323,8 +337,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         try {
           // Electron環境では安全にファイルパスを生成
           if (typeof window !== 'undefined' && (window as any).electronAPI) {
-            // Electron環境では file:// プロトコルを使用しない
-            blobUrl = `file-${file.name}-${Date.now()}`;
+            // Electron環境では rawFile を直接使用し、パスは空文字列にする
+            // 実際の再生時は rawFile から blob URL を生成する
+            blobUrl = '';
           } else {
             blobUrl = URL.createObjectURL(file);
           }
@@ -332,7 +347,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         } catch (error) {
           console.error('Failed to process file:', error);
           // エラーが発生してもファイル処理は続行
-          blobUrl = `file-${file.name}-${Date.now()}`;
+          blobUrl = '';
           duration = 0;
         }
       }
@@ -362,8 +377,28 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         'rawFile exists:',
         !!audioFile.rawFile
       );
-      onFileSelect(audioFile);
-      setValidationErrors([]);
+      
+      // 処理完了時に進捗を100%にする
+      setUploadProgress(100);
+      
+      // 大容量ファイルの場合は少し待ってから完了
+      if (file.size > 300 * 1024 * 1024) {
+        console.log('🔥 大容量ファイル処理完了:', {
+          fileName: file.name,
+          fileSize: `${Math.round(file.size / 1024 / 1024)}MB`,
+          processingTime: 'ファイル処理が完了しました'
+        });
+        
+        setTimeout(() => {
+          setIsUploading(false);
+          onFileSelect(audioFile);
+          setValidationErrors([]);
+        }, 1000);
+      } else {
+        setIsUploading(false);
+        onFileSelect(audioFile);
+        setValidationErrors([]);
+      }
 
     } catch (err) {
       setIsUploading(false);
@@ -372,7 +407,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     }
   }, [onFileSelect, maxFileSize, acceptedFormats]);
 
-  // 音声の長さを取得（最終改善版）
+  // 音声の長さを取得（大容量ファイル対応版）
   const getAudioDuration = (file: File): Promise<number> => {
     return new Promise((resolve) => {
       // 文書ファイルの場合は0を返す
@@ -383,14 +418,18 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       }
 
       // 音声ファイル以外は0を返す
-      if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|wav|m4a|flac|aac)$/i)) {
+      if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|wav|m4a|flac|aac|mp4|mov|avi)$/i)) {
         resolve(0);
         return;
       }
 
-      // 大容量ファイル（500MB以上）は処理をスキップ
-      if (file.size > 500 * 1024 * 1024) {
-        console.warn('File too large for audio duration detection (>500MB)');
+      // 大容量ファイル（300MB以上）は処理をスキップ（閾値を下げて安全性向上）
+      if (file.size > 300 * 1024 * 1024) {
+        console.log('🔥 大容量ファイルのため音声時間取得をスキップ:', {
+          fileName: file.name,
+          fileSize: `${Math.round(file.size / 1024 / 1024)}MB`,
+          reason: '300MB以上のファイルは処理時間短縮のため時間取得をスキップ'
+        });
         resolve(0);
         return;
       }
@@ -459,11 +498,16 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       audio.addEventListener('error', onError);
       audio.addEventListener('loadstart', onLoadStart);
       
-      // タイムアウトを30秒に延長（大容量ファイル対策）
+      // ファイルサイズに応じてタイムアウト時間を調整
+      const timeoutDuration = file.size > 100 * 1024 * 1024 ? 60000 : 30000; // 100MB以上は60秒、未満は30秒
       timeoutId = setTimeout(() => {
-        console.warn('Audio duration detection timed out (30s)');
+        console.log(`🔥 音声時間取得タイムアウト (${timeoutDuration/1000}s):`, {
+          fileName: file.name,
+          fileSize: `${Math.round(file.size / 1024 / 1024)}MB`,
+          note: '大容量ファイルのためタイムアウト、処理を続行します'
+        });
         resolveOnce(0);
-      }, 30000);
+      }, timeoutDuration);
       
       try {
         // Electron環境では音声時間の取得をスキップ
@@ -534,18 +578,42 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
   // 音声再生制御
   const togglePlayback = useCallback(() => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play().catch((error) => {
-          console.error('Audio play error:', error);
-          setIsPlaying(false);
-        });
-      }
-      setIsPlaying(!isPlaying);
+    if (!selectedFile || selectedFile.metadata?.fileType !== 'audio') {
+      return;
     }
-  }, [isPlaying]);
+
+    if (isPlaying) {
+      audioRef.current?.pause();
+      setIsPlaying(false);
+      return;
+    }
+
+    // Electron環境では rawFile から blob URL を動的に生成
+    if (typeof window !== 'undefined' && (window as any).electronAPI && selectedFile.rawFile) {
+      try {
+        const blobUrl = URL.createObjectURL(selectedFile.rawFile);
+        if (audioRef.current) {
+          audioRef.current.src = blobUrl;
+          audioRef.current.play().catch((error) => {
+            console.error('Audio play error:', error);
+            setIsPlaying(false);
+            URL.revokeObjectURL(blobUrl);
+          });
+          setIsPlaying(true);
+        }
+      } catch (error) {
+        console.error('Failed to create blob URL for audio playback:', error);
+        setIsPlaying(false);
+      }
+    } else if (audioRef.current && selectedFile.path) {
+      // 通常のブラウザ環境
+      audioRef.current.play().catch((error) => {
+        console.error('Audio play error:', error);
+        setIsPlaying(false);
+      });
+      setIsPlaying(true);
+    }
+  }, [isPlaying, selectedFile]);
 
   // ファイル削除
   const handleFileRemove = useCallback(() => {
@@ -685,10 +753,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                   </IconButton>
                 </Box>
               </Box>
-              {selectedFile.metadata?.fileType === 'audio' && selectedFile.path && (
+              {selectedFile.metadata?.fileType === 'audio' && (
                 <audio
                   ref={audioRef}
-                  src={selectedFile.path}
                   onEnded={() => setIsPlaying(false)}
                   onError={(e) => {
                     const error = e.currentTarget.error;

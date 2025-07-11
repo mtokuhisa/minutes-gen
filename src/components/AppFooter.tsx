@@ -260,7 +260,7 @@ export const AppFooter: React.FC = () => {
                 fontSize: '0.75rem',
               }}
             >
-              v0.7.0 | Build 2025.07.09
+              v0.7.3 | Build 2025.07.11
             </Typography>
           </Box>
         </Box>

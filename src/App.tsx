@@ -46,6 +46,7 @@ const AppContent: React.FC = () => {
     isProcessing,
     progress,
     isApiConfigured,
+    detailedProgress,
     
     // アクション
     setCurrentStep,
@@ -178,6 +179,8 @@ const AppContent: React.FC = () => {
             <ProcessingProgress
               progress={progress}
               showLogs={true}
+              detailedProgress={detailedProgress}
+              selectedFile={selectedFile}
             />
           )}
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MinutesGen v1.0 - 概要と使い方</title>
+    <title>MinutesGen v0.7.3 - 概要と使い方</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <style>
@@ -707,20 +707,20 @@
     <main class="main-content">
                 <!-- ページタイトル -->
         <div class="page-title">
-            <h1>MinutesGen v1.0</h1>
-            <p>AI音声認識による高品質な議事録生成システム</p>
+            <h1>MinutesGen v0.7.3</h1>
+            <p>dJ基準で全情報入力可能な高品質な議事録生成システム</p>
         </div>
 
         <!-- セキュリティ警告 -->
         <div class="security-notice">
             <h3>セキュリティについて</h3>
-                            <p style="margin-bottom: 20px;"><strong>暫定的に全情報入力可としています</strong></p>
+                            <p style="margin-bottom: 20px;"><strong>全情報区分入力可能</strong></p>
             <ul>
                 <li style="margin-bottom: 15px;">プロンプト、結果共にAI学習に利用されません。</li>
-                <li>実行履歴情報は残りません。プロンプト設定・辞書機能だけをユーザーローカルに保存します。</li>
-                <li>ローカル内にしかデータが残らないスタンドアローン仕様です。セキュリティ維持のためSharepoint内で利用してください。</li>
+                <li>実行履歴情報は残りません。プロンプト設定・辞書機能（追って追加予定）だけをユーザーローカルに保存します。</li>
+                <li>ローカル内にしかデータが残らないスタンドアローン仕様です。</li>
             </ul>
-            <p><strong>上記より、dJ基準で全情報入力可と判断していますが、現在dJ AIガバナンスコミッティに確認中です。</strong></p>
+            <p><strong>dJ基準で全情報入力可（NDA、個人情報、契約目的外利用、取扱厳重注意情報含むすべて） dJ AIガバナンスコミッティ確認済</strong></p>
         </div>
 
         <!-- 概要セクション -->
@@ -730,17 +730,17 @@
                 <div class="benefit-card">
                     <div class="benefit-icon">🎤</div>
                     <h3>高精度音声認識</h3>
-                    <p>OpenAI GPT-4 Transcribeを使用した業界最高水準の音声認識により、複数話者の会議でも正確な文字起こしを実現。話者識別機能で誰が何を話したかも明確に記録します。</p>
+                    <p>OpenAI GPT-4 Transcribeを使用した業界最高水準の音声認識により、複数話者の会議でも正確な文字起こしを実現。</p>
                 </div>
                 <div class="benefit-card">
                     <div class="benefit-icon">📝</div>
                     <h3>AI議事録生成</h3>
-                    <p>GPT-4.1またはo3モデルを選択可能。カスタムプロンプトにより、あなたの組織に最適化された議事録を自動生成。重要ポイントの抽出からアクション項目の整理まで自動化します。</p>
+                    <p>GPT-4.1またはo3モデルを選択可能。カスタムプロンプトにより、あなたの業務に最適化された議事録を自動生成。</p>
                 </div>
                 <div class="benefit-card">
                     <div class="benefit-icon">⚡</div>
                     <h3>効率的なワークフロー</h3>
-                    <p>音声ファイルをドラッグ&ドロップするだけで、文字起こしから議事録生成まで全自動。従来の手作業と比べて90%以上の時間短縮を実現します。</p>
+                    <p>ファイルをドラッグ&ドロップするだけで、文字起こしから議事録生成まで全自動。従来の手作業と比べて90%以上の時間短縮を実現します。</p>
                 </div>
                 <div class="benefit-card">
                     <div class="benefit-icon">🔒</div>
@@ -750,7 +750,7 @@
                 <div class="benefit-card">
                     <div class="benefit-icon">📄</div>
                     <h3>多様な出力形式</h3>
-                    <p>Markdown、Word、HTML形式での出力に対応。用途に応じて最適なフォーマットを選択できます。美しいレイアウトで即座に共有可能です。</p>
+                    <p>Markdown、Word、HTML形式での出力に対応。用途に応じて最適なフォーマットを選択できます。ポッドキャスト、インフォグラフィックス生成機能実装。</p>
                 </div>
                 <div class="benefit-card">
                     <div class="benefit-icon">🎨</div>
@@ -767,7 +767,7 @@
             <!-- 基本操作フロー -->
             <div style="margin-bottom: 50px;">
                 <h3 style="font-size: 1.5rem; color: #66bb6a; margin-bottom: 20px; text-align: center;">基本操作フロー（1-11）</h3>
-                <p style="text-align: center; color: #666; margin-bottom: 30px;">音声ファイルのアップロードから議事録生成まで、3ステップで完了。</p>
+                <p style="text-align: center; color: #666; margin-bottom: 30px;">ファイルのアップロードから議事録生成まで、3ステップで完了。</p>
             </div>
             
             <div class="usage-step">
@@ -775,7 +775,7 @@
                     <div class="step-number">1</div>
                     <h3>アプリケーション起動</h3>
                     <p>MinutesGenを起動すると、クリーンで直感的なメイン画面が表示されます。</p>
-                    <p>4つのステップで議事録生成が完了する簡単なワークフローです。</p>
+                    <p>3つのステップで議事録生成が完了する簡単なワークフローです。</p>
                 </div>
                 <div class="usage-step-image">
                     <img src="01立上げ時画面.jpg" alt="アプリケーション起動画面">
@@ -785,9 +785,9 @@
             <div class="usage-step">
                 <div class="usage-step-content">
                     <div class="step-number">2</div>
-                    <h3>音声ファイルのアップロード</h3>
+                    <h3>ファイルのアップロード</h3>
                     <p>音声・動画ファイルをドラッグ&ドロップまたはファイル選択でアップロードします。</p>
-                    <p>MP3、WAV、MP4など主要な音声・動画形式に対応しています。</p>
+                    <p>MP3、WAV、MP4など主要な音声・動画形式やDOCX、TXT、MD等のトランススクリプトに対応しています。</p>
                 </div>
                 <div class="usage-step-image">
                     <img src="02ファイル添付時画面.jpg" alt="ファイルアップロード画面">
@@ -847,7 +847,7 @@
                     <div class="step-number">7</div>
                     <h3>文字起こし結果表示</h3>
                     <p>音声認識が完了すると、文字起こしの生原稿が表示されます。</p>
-                    <p>話者識別、信頼度、タイムスタンプ付きで詳細な文字起こしを確認できます。</p>
+                    <p>詳細な文字起こしを確認でき、テキスト形式でのダウンロードも可能。</p>
                 </div>
                 <div class="usage-step-image">
                     <img src="07文字起こし生原稿表示.jpg" alt="文字起こし結果画面">
@@ -882,8 +882,8 @@
                 <div class="usage-step-content">
                     <div class="step-number">10</div>
                     <h3>音声合成機能</h3>
-                    <p>生成された議事録を音声で聞くことができます。</p>
-                    <p>ポッドキャスト形式での出力も可能です（実装途中）。</p>
+                    <p>ポッドキャスト形式の音声を生成、聞くことができます。</p>
+                    <p>「深堀くん」から、あいつらが出張中。</p>
                 </div>
                 <div class="usage-step-image">
                     <img src="10音声で聞けます（実装途中）.jpg" alt="音声合成機能画面">
@@ -894,8 +894,8 @@
                 <div class="usage-step-content">
                     <div class="step-number">11</div>
                     <h3>ビジュアル化機能</h3>
-                    <p>議事録データのビジュアル化機能を開発中です。</p>
-                    <p>チャート、グラフ、統計情報などで会議内容を視覚的に分析できます。</p>
+                    <p>議事録データのビジュアル化機能。</p>
+                    <p>会議内容を視覚的に表現。したいですが、テスト実装に近いです。</p>
                 </div>
                 <div class="usage-step-image">
                     <img src="11ビジュアル化表示も（開発予定）.jpg" alt="ビジュアル化機能画面">
@@ -910,9 +910,9 @@
 
             <div class="usage-step">
                 <div class="usage-step-content">
-                    <h3>API KEY設定</h3>
-                    <p>初回のみOpenAI API KEYの設定が必要です。</p>
-                    <p>設定後はテスト実行で接続を確認し、ローカルに安全に保存されます。</p>
+                    <h3>パスワード設定</h3>
+                    <p>初回のみパスワードの入力が必要です。</p>
+                    <p>パスワードを他の人に教えることは禁止します。</p>
                 </div>
                 <div class="usage-step-image">
                     <img src="20初回のみAPI KEYの設定とテスト、保存が必要.jpg" alt="API KEY設定画面">

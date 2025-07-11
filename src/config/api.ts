@@ -46,13 +46,27 @@ const getEnvVar = (key: string): string | undefined => {
   return undefined;
 };
 
+// 企業設定キャッシュ（無限ループ防止）
+let corporateConfigCache: CorporateConfig | null | undefined = undefined;
+let corporateConfigCacheTime = 0;
+const CACHE_DURATION = 10000; // 10秒間キャッシュ
+
 // 企業設定ファイルを読み込み
 const loadCorporateConfig = (): CorporateConfig | null => {
+  // キャッシュチェック（無限ループ防止）
+  const now = Date.now();
+  if (corporateConfigCache !== undefined && (now - corporateConfigCacheTime) < CACHE_DURATION) {
+    return corporateConfigCache;
+  }
+
   try {
     // 方法1: 環境変数から読み込み（推奨）
     const envConfig = getEnvVar('CORPORATE_CONFIG');
     if (envConfig) {
-      return JSON.parse(envConfig);
+      const config = JSON.parse(envConfig);
+      corporateConfigCache = config;
+      corporateConfigCacheTime = now;
+      return config;
     }
     
     // 方法2: Electronの場合はipcRendererを使用（remote削除対応）
@@ -62,13 +76,21 @@ const loadCorporateConfig = (): CorporateConfig | null => {
         // 企業設定が存在する場合は使用し、存在しない場合は個人設定にフォールバック
         const config = window.electronAPI.getCorporateConfig();
         if (config && typeof config.then === 'function') {
-          // 非同期の場合は同期的に処理できないため、nullを返す
+          // 非同期の場合は警告を出すが、処理は続行
           console.log('Electron環境: 企業設定の非同期読み込みをスキップします。');
+          // 認証サービスが利用可能な場合は、そちらに委ねる
+          corporateConfigCache = null;
+          corporateConfigCacheTime = now;
           return null;
         }
+        corporateConfigCache = config;
+        corporateConfigCacheTime = now;
         return config;
       } catch (error) {
         console.warn('Electron API経由での企業設定読み込みに失敗:', error);
+        // エラーが発生しても処理を続行し、認証サービスに委ねる
+        corporateConfigCache = null;
+        corporateConfigCacheTime = now;
       }
     }
     
@@ -94,9 +116,13 @@ const loadCorporateConfig = (): CorporateConfig | null => {
       }
     }
     
+    corporateConfigCache = null;
+    corporateConfigCacheTime = now;
     return null;
   } catch (error) {
     console.warn('企業設定ファイルの読み込みに失敗:', error);
+    corporateConfigCache = null;
+    corporateConfigCacheTime = now;
     return null;
   }
 };

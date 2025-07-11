@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MinutesGen v1.0 - 技術仕様・更新履歴</title>
+    <title>MinutesGen v0.7.3 - 技術仕様・更新履歴</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <style>
@@ -462,9 +462,9 @@
     <!-- ヘッダー -->
     <header class="header">
         <div class="header-content">
-            <h1>MinutesGen v1.0</h1>
+            <h1>MinutesGen v0.7.3</h1>
             <p class="subtitle">技術仕様・更新履歴</p>
-            <div class="version-badge">Version 0.7.0 公開版</div>
+            <div class="version-badge">Version 0.7.3 公開版</div>
         </div>
     </header>
 
@@ -528,8 +528,8 @@
                         </h4>
                         <ul class="feature-list">
                             <li>API統合: OpenAI GPT-4 Transcribe</li>
-                            <li>対応形式: MP3, WAV, M4A, FLAC</li>
-                            <li>最大ファイルサイズ: 25MB</li>
+                            <li>対応形式: MP3, WAV, M4A, FLAC,DOCX,TXT,MD</li>
+                            <li>最大ファイルサイズ: 1000MB</li>
                             <li>処理時間: 平均 30秒/分</li>
                             <li>精度: 日本語 95%以上</li>
                         </ul>
@@ -643,7 +643,7 @@
                             ファイル処理
                         </h4>
                         <ul class="feature-list">
-                            <li>チャンク処理: 1MBずつ分割</li>
+                            <li>チャンク処理: 15MBずつ分割</li>
                             <li>並列処理: 最大3並列</li>
                             <li>エラー処理: 自動リトライ（最大3回）</li>
                             <li>メモリ効率的な処理</li>
@@ -680,7 +680,6 @@
                             <li>最大ファイルサイズ: 25MB</li>
                             <li>同時処理数: 1ファイル</li>
                             <li>オフライン処理: 未対応</li>
-                            <li>言語サポート: 日本語のみ</li>
                         </ul>
                     </div>
                     <div class="info-card">
@@ -692,7 +691,6 @@
                             <li>OpenAI API レート制限準拠</li>
                             <li>月間利用量制限あり</li>
                             <li>ネットワーク接続必須</li>
-                            <li>API Key必須</li>
                         </ul>
                     </div>
                 </div>
@@ -707,11 +705,171 @@
                     更新履歴
                 </h2>
                 
+                <!-- Version 0.7.3 -->
+                <div class="version-item">
+                    <div class="version-header">
+                        <div class="version-title">Version 0.7.3 - 進捗表示改善版</div>
+                        <div class="version-date">2025.7.11</div>
+                    </div>
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">schedule</span>
+                                開発期間
+                            </h4>
+                            <ul class="feature-list">
+                                <li>制作開始: 2025.7.11</li>
+                                <li>公開日: 2025.7.11</li>
+                                <li>開発期間: 1日間</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">trending_up</span>
+                                進捗表示システム改善
+                            </h4>
+                            <ul class="feature-list">
+                                <li>セグメント表示が9/24で停止する問題解決</li>
+                                <li>予想残り時間0秒表示を完全削除</li>
+                                <li>統計情報レイアウトを2列表示に調整</li>
+                                <li>現在のタスク表示を削除</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">settings</span>
+                                処理段階の改善
+                            </h4>
+                            <ul class="feature-list">
+                                <li>analyzing → preprocessing に変更</li>
+                                <li>「解析」→「ファイル前処理中」に変更</li>
+                                <li>4段階の詳細メッセージ追加</li>
+                                <li>FFmpeg処理の可視化改善</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">bug_report</span>
+                                バグ修正
+                            </h4>
+                            <ul class="feature-list">
+                                <li>totalSegments未定義エラー解決</li>
+                                <li>updateAIThoughts未定義エラー解決</li>
+                                <li>selectedFile.type未定義エラー対応</li>
+                                <li>オプショナルチェーニング追加</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Version 0.7.2 -->
+                <div class="version-item">
+                    <div class="version-header">
+                        <div class="version-title">Version 0.7.2 - バグFIX版</div>
+                        <div class="version-date">2025.7.10</div>
+                    </div>
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">schedule</span>
+                                開発期間
+                            </h4>
+                            <ul class="feature-list">
+                                <li>制作開始: 2025.7.10</li>
+                                <li>公開日: 2025.7.10</li>
+                                <li>開発期間: 1日間</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">storage</span>
+                                大容量ファイル処理改善
+                            </h4>
+                            <ul class="feature-list">
+                                <li>ファイル処理時の予期せぬエラー解決</li>
+                                <li>FFmpeg処理の不安定さを改善</li>
+                                <li>FFmpeg処理の精緻化</li>
+                                <li>処理安定性の向上</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">business</span>
+                                配布バージョンのバグ修正
+                            </h4>
+                            <ul class="feature-list">
+                                <li>.exe生成時のエラー解決</li>
+                                <li>動作時のエラー修正</li>
+                                <li>企業APIハンドリング方法改善</li>
+                                <li>相対パス参照や埋め込みによる安定化</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Version 0.7.1 -->
+                <div class="version-item">
+                    <div class="version-header">
+                        <div class="version-title">Version 0.7.1 - 安定性向上版</div>
+                        <div class="version-date">2025.7.9</div>
+                    </div>
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">text_format</span>
+                                文字起こし表示システム修正
+                            </h4>
+                            <ul class="feature-list">
+                                <li>時間情報と改行が正しく表示されない問題解決</li>
+                                <li>文字起こしテキストを文章単位で分割</li>
+                                <li>各文章に時間情報（30秒間隔）を付与</li>
+                                <li>改行処理を簡素化</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">api</span>
+                                APIトークン制限対応
+                            </h4>
+                            <ul class="feature-list">
+                                <li>33,985→500,000トークン対応（1,472%向上）</li>
+                                <li>optimizeContentForAPI関数追加</li>
+                                <li>重要度に基づく段落選択・要約</li>
+                                <li>段階的切り詰め処理実装</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">navigation</span>
+                                ナビゲーション修正
+                            </h4>
+                            <ul class="feature-list">
+                                <li>「設定に戻る」ボタン押下後の問題解決</li>
+                                <li>canProceedToNextStep関数修正</li>
+                                <li>APIキー存在チェック改善</li>
+                                <li>ファイル選択状態保持</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">file_present</span>
+                                ファイル対応改善
+                            </h4>
+                            <ul class="feature-list">
+                                <li>インフォグラフィック対応形式をtxtのみに制限</li>
+                                <li>PDF、Word、Excel等の不安定形式除外</li>
+                                <li>accept属性を.txtのみに変更</li>
+                                <li>安定性重視の設計</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Version 0.7.0 -->
                 <div class="version-item">
                     <div class="version-header">
                         <div class="version-title">Version 0.7.0 - 公開版</div>
-                        <div class="version-date">2025.7.9</div>
+                        <div class="version-date">2025.7.8</div>
                     </div>
                     <div class="info-grid">
                         <div class="info-card">
@@ -721,8 +879,8 @@
                             </h4>
                             <ul class="feature-list">
                                 <li>制作開始: 2025.7.8</li>
-                                <li>公開日: 2025.7.9</li>
-                                <li>開発期間: 2日間</li>
+                                <li>公開日: 2025.7.11</li>
+                                <li>開発期間: 4日間</li>
                             </ul>
                         </div>
                         <div class="info-card">

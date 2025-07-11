@@ -2,7 +2,7 @@
 // MinutesGen v1.0 - TTS（音声合成）コンポーネント
 // ===========================================
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -117,9 +117,41 @@ export const TTS: React.FC<TTSProps> = ({ results }) => {
     tension: 'normal',
   });
 
+  const [currentStatusMessage, setCurrentStatusMessage] = useState<string>('台本を考えています');
+
   const updateState = useCallback((updates: Partial<TTSState>) => {
     setState(prev => ({ ...prev, ...updates }));
   }, []);
+
+  // ステータスメッセージの更新
+  const updateStatusMessage = useCallback((progress: number) => {
+    const scriptMessages = ['台本を考えています', 'ネタ合わせをしています'];
+    const audioMessages = ['リハーサルしています', 'のど飴を取りに行ってます', 'ちょっと休憩中', '機材の確認中', 'お菓子たべてます', 'リハーサル頑張ってます'];
+    
+    const messages = progress < 50 ? scriptMessages : audioMessages;
+    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+    setCurrentStatusMessage(randomMessage);
+  }, []);
+
+  // 7秒前後でランダムにメッセージを更新
+  useEffect(() => {
+    if (state.isGenerating) {
+      const updateMessage = () => {
+        updateStatusMessage(state.progress);
+        
+        // 6-8秒のランダムな間隔で次の更新をスケジュール
+        const randomDelay = 6000 + Math.random() * 2000; // 6-8秒
+        setTimeout(updateMessage, randomDelay);
+      };
+      
+      // 初回は3秒後に開始
+      const initialTimeout = setTimeout(updateMessage, 3000);
+      
+      return () => {
+        clearTimeout(initialTimeout);
+      };
+    }
+  }, [state.isGenerating, state.progress, updateStatusMessage]);
 
   // 時間オプションの設定
   const getDurationSettingsDetailed = (duration: 'short' | 'medium' | 'long') => {
@@ -269,23 +301,73 @@ ${results.actionItems.map(ai => `• ${ai.task} (担当: ${ai.assignee})`).join(
       throw new Error('API KEYが取得できませんでした。認証を確認してください。');
     }
 
+    // 詳細ログ: リクエスト内容を出力
+    const requestBody = {
+      model: 'gpt-4o-mini-tts',
+      input: text,
+      voice: voice,
+      response_format: 'mp3',
+      speed: speed,
+    };
+
+    console.log('🎤 TTS API リクエスト詳細:', {
+      textLength: text.length,
+      textPreview: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+      voice: voice,
+      speed: speed,
+      hasSpecialChars: /[^\u0020-\u007E\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(text),
+      hasControlChars: /[\u0000-\u001F\u007F-\u009F]/.test(text),
+      hasEmojis: /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u.test(text),
+      isEmpty: text.trim().length === 0,
+    });
+
     const response = await fetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini-tts',
-        input: text,
-        voice: voice,
-        response_format: 'mp3',
-        speed: speed,
-      }),
+      body: JSON.stringify(requestBody),
+    });
+
+    // 詳細ログ: レスポンス情報を出力
+    console.log('🎤 TTS API レスポンス詳細:', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
+      contentType: response.headers.get('content-type'),
+      contentLength: response.headers.get('content-length'),
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      let errorData: any = {};
+      let errorText = '';
+      
+      try {
+        // レスポンスの内容を詳細に取得
+        const responseText = await response.text();
+        errorText = responseText;
+        
+        try {
+          errorData = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('🎤 エラーレスポンスのJSON解析に失敗:', parseError);
+          errorData = { rawResponse: responseText };
+        }
+      } catch (readError) {
+        console.error('🎤 エラーレスポンスの読み取りに失敗:', readError);
+      }
+
+      // 詳細ログ: エラー情報を出力
+      console.error('🎤 TTS API エラー詳細:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData: errorData,
+        errorText: errorText.substring(0, 500),
+        requestText: text.substring(0, 200),
+        requestVoice: voice,
+        requestSpeed: speed,
+      });
       
       // 認証エラーの場合は特別な処理
       if (response.status === 401) {
@@ -293,23 +375,59 @@ ${results.actionItems.map(ai => `• ${ai.task} (担当: ${ai.assignee})`).join(
         throw new Error('認証に失敗しました。再度ログインしてください。');
       }
       
-      throw new Error(`音声合成エラー (${response.status}): ${errorData.error?.message || response.statusText}`);
+      throw new Error(`音声合成エラー (${response.status}): ${errorData.error?.message || errorText || response.statusText}`);
     }
 
-    return response.blob();
+    const blob = await response.blob();
+    console.log('🎤 TTS API 成功:', {
+      blobSize: blob.size,
+      blobType: blob.type,
+    });
+
+    return blob;
   };
 
   // 2人のホスト音声を結合
   const generateDualHostAudio = async (podcastText: string): Promise<Blob> => {
+    console.log('🎧 2人のホスト音声合成開始');
+    console.log('🎧 入力テキスト詳細:', {
+      totalLength: podcastText.length,
+      textPreview: podcastText.substring(0, 200) + (podcastText.length > 200 ? '...' : ''),
+      hasSpecialChars: /[^\u0020-\u007E\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(podcastText),
+      hasControlChars: /[\u0000-\u001F\u007F-\u009F]/.test(podcastText),
+      hasEmojis: /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u.test(podcastText),
+    });
+    
     // テキストを話者別に分割
     const segments = podcastText.split(/\[(ねほりーの|はほりーの)\]/);
+    
+    console.log('🎧 テキスト分割結果:', {
+      totalSegments: segments.length,
+      segments: segments.map((segment, index) => ({
+        index,
+        length: segment.length,
+        preview: segment.substring(0, 50) + (segment.length > 50 ? '...' : ''),
+        isEmpty: segment.trim().length === 0,
+      })),
+    });
+    
     const audioSegments: Blob[] = [];
     
     for (let i = 1; i < segments.length; i += 2) {
       const speaker = segments[i];
       const text = segments[i + 1]?.trim();
       
-      if (!text) continue;
+      console.log(`🎧 セグメント処理 (${i}/${segments.length}):`, {
+        speaker,
+        hasText: !!text,
+        textLength: text?.length || 0,
+        textPreview: text?.substring(0, 100) + (text && text.length > 100 ? '...' : ''),
+      });
+      
+      if (!text) {
+        console.log(`🎧 セグメント ${i}: テキストが空のためスキップ`);
+        continue;
+      }
       
       // 話者に応じた音声設定（promptStore.tsの設定に戻す）
       let voice: string, speed: number;
@@ -323,13 +441,34 @@ ${results.actionItems.map(ai => `• ${ai.task} (担当: ${ai.assignee})`).join(
         speed = podcastSettings.tension === 'high' ? 1.4 : 1.3;
       }
       
+      console.log(`🎧 セグメント ${i} 音声生成開始:`, {
+        speaker,
+        voice,
+        speed,
+        textLength: text.length,
+      });
+      
       // 音声生成
       const audioBlob = await generateSingleAudio(text, voice, speed);
       audioSegments.push(audioBlob);
+      
+      console.log(`🎧 セグメント ${i} 音声生成完了: ${audioBlob.size} bytes`);
     }
     
+    console.log('🎧 全セグメント処理完了:', {
+      totalSegments: audioSegments.length,
+      totalSize: audioSegments.reduce((sum, blob) => sum + blob.size, 0),
+    });
+    
     // 音声セグメントを結合
-    return await combineAudioBlobs(audioSegments);
+    const combinedBlob = await combineAudioBlobs(audioSegments);
+    
+    console.log('🎧 音声結合完了:', {
+      combinedSize: combinedBlob.size,
+      combinedType: combinedBlob.type,
+    });
+    
+    return combinedBlob;
   };
 
   // 音声Blobを結合する関数
@@ -368,6 +507,9 @@ ${results.actionItems.map(ai => `• ${ai.task} (担当: ${ai.assignee})`).join(
       const authMethod = authService.getAuthMethod();
       const authMethodText = authMethod === 'corporate' ? '企業アカウント' : '個人アカウント';
       console.log(`TTS生成開始 (${authMethodText})`);
+
+      // 初期メッセージ設定
+      setCurrentStatusMessage('台本を考えています');
 
       // ステップ1: ポッドキャストテキスト生成
       updateState({ progress: 20 });
@@ -563,9 +705,7 @@ ${results.actionItems.map(ai => `• ${ai.task} (担当: ${ai.assignee})`).join(
               <Box sx={{ mt: 2 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                   <Typography variant="body2" color="text.secondary">
-                    {state.progress < 30 ? '２人が台本を考えています' : 
-                     state.progress < 70 ? '2人がリハーサルしてます' : 
-                     'ちょっと休憩中'}
+                    {currentStatusMessage}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     {Math.round(state.progress)}%

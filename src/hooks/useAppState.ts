@@ -17,6 +17,13 @@ import { OpenAIService } from '../services/openai';
 import { AuthService } from '../services/authService';
 import { APIConfig, getAPIConfig, saveAPIConfig } from '../config/api';
 
+// 進捗情報の詳細データ
+interface DetailedProgress {
+  lastUpdateTime: Date;
+}
+
+
+
 export interface AppState {
   // 基本状態
   currentStep: number;
@@ -79,6 +86,11 @@ export const useAppState = () => {
     progress: null,
   });
 
+  // 詳細進捗情報の状態管理
+  const [detailedProgress, setDetailedProgress] = useState<DetailedProgress>({
+    lastUpdateTime: new Date(),
+  });
+
   // OpenAI サービス
   const [openAIService] = useState(() => new OpenAIService());
 
@@ -99,6 +111,14 @@ export const useAppState = () => {
     
     checkAuthStatus();
   }, [authService]);
+
+  // シンプルな進捗更新
+  const updateDetailedProgress = useCallback(() => {
+    setDetailedProgress(prev => ({
+      ...prev,
+      lastUpdateTime: new Date(),
+    }));
+  }, []);
 
   // API設定の更新
   const updateApiConfig = useCallback((newConfig: Partial<APIConfig>) => {
@@ -325,10 +345,22 @@ export const useAppState = () => {
       return selectedFile !== null;
     }
     if (currentStep === 1) {
-      return isApiConfigured;
+      // 企業設定の非同期読み込みをスキップする場合でも、
+      // 認証サービスから直接APIキーを取得できるかチェック
+      try {
+        const hasApiKey = authService.isAuthenticated();
+        if (hasApiKey) {
+          return true;
+        }
+        // フォールバック: isApiConfiguredもチェック
+        return isApiConfigured;
+      } catch (error) {
+        console.warn('認証状態チェック中にエラー:', error);
+        return isApiConfigured;
+      }
     }
     return false;
-  }, [currentStep, selectedFile, isApiConfigured]);
+  }, [currentStep, selectedFile, isApiConfigured, authService]);
 
   // エラーをクリア
   const clearError = useCallback(() => {
@@ -347,6 +379,7 @@ export const useAppState = () => {
     apiConfig,
     isApiConfigured,
     infographic,
+    detailedProgress,
     
     // アクション
     setCurrentStep,
@@ -365,5 +398,6 @@ export const useAppState = () => {
     // インフォグラフィック
     setInfographicConfig,
     generateInfographic,
+    updateDetailedProgress,
   };
 }; 

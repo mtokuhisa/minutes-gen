@@ -1,7 +1,7 @@
 {
   "name": "minutes-gen",
-  "version": "0.7.2",
-  "description": "MinutesGen v0.7.2 - AI-powered minutes generation from audio/video files",
+  "version": "0.7.3",
+  "description": "MinutesGen v0.7.3 - AI-powered minutes generation from audio/video files",
   "main": "dist/main.js",
   "homepage": "./",
   "scripts": {
@@ -16,7 +16,7 @@
     "dist:win": "npm run build && electron-builder --win --ia32",
     "dist:portable": "npm run build && electron-builder --win portable --ia32",
     "dist:corporate": "npm run build && electron-builder --win portable --config.compression=store",
-    "dist:zip": "npm run build && electron-builder --win dir --ia32 && cd dist-electron && zip -r MinutesGen-v0.7.2-portable.zip win-unpacked/",
+    "dist:zip": "npm run build && electron-builder --win dir --ia32 && cd dist-electron && zip -r MinutesGen-v0.7.3-portable.zip win-unpacked/",
     "dist:signed": "npm run build && electron-builder --win --publish=never",
     "create-cert": "powershell -ExecutionPolicy Bypass -File scripts/create-certificate.ps1",
     "test:exe-mode": "npm run build && electron scripts/test-exe-mode.js",
@@ -74,6 +74,7 @@
   "dependencies": {
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
+    "@ffmpeg/core": "^0.12.6",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@mui/icons-material": "^5.14.0",
