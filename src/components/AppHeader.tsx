@@ -37,7 +37,7 @@ interface AppHeaderProps {
   authMethod?: 'corporate' | 'personal' | null;
 }
 
-export const AppHeader: React.FC<AppHeaderProps> = ({ onRestart, onAuthReset, authMethod }) => {
+export const AppHeader: React.FC<AppHeaderProps> = React.memo(({ onRestart, onAuthReset, authMethod }) => {
   const { themeMode, toggleTheme, theme } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [restartDialogOpen, setRestartDialogOpen] = useState(false);
@@ -123,12 +123,27 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onRestart, onAuthReset, au
               onClick={handleLogoClick}
             >
               <img
-                src="./mgen_logo.svg"
+                src="mgen_logo.svg"
                 alt="MinutesGen Logo"
                 style={{
                   height: '60px',
                   width: 'auto',
                   filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
+                }}
+                onError={(e) => {
+                  console.error('ロゴ画像の読み込みに失敗しました');
+                  // フォールバック: テキストロゴを表示
+                  (e.target as HTMLImageElement).style.display = 'none';
+                  const parentNode = (e.target as HTMLImageElement).parentNode as HTMLElement;
+                  if (parentNode && !parentNode.querySelector('.text-logo')) {
+                    const textLogo = document.createElement('div');
+                    textLogo.className = 'text-logo';
+                    textLogo.textContent = 'MinutesGen';
+                    textLogo.style.fontSize = '24px';
+                    textLogo.style.fontWeight = 'bold';
+                    textLogo.style.color = 'white';
+                    parentNode.appendChild(textLogo);
+                  }
                 }}
               />
             </Box>
@@ -231,4 +246,4 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onRestart, onAuthReset, au
       </Dialog>
     </AppBar>
   );
-}; 
+}); 

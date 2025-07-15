@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -17,6 +17,7 @@ import {
   Fade,
   Zoom,
   Divider,
+  AlertTitle,
 } from '@mui/material';
 import {
   CloudUpload,
@@ -37,6 +38,7 @@ import {
 } from '@mui/icons-material';
 import { AudioFile, FileValidation } from '../types';
 import mammoth from 'mammoth';
+import Encoding from 'encoding-japanese';
 
 // ===========================================
 // MinutesGen v1.0 - ファイルアップロード
@@ -45,13 +47,15 @@ import mammoth from 'mammoth';
 interface FileUploadProps {
   selectedFile: AudioFile | null;
   onFileSelect: (file: AudioFile | null) => void;
+  onNext?: () => void;
   maxFileSize?: number;
   acceptedFormats?: string[];
 }
 
-export const FileUpload: React.FC<FileUploadProps> = ({
+export const FileUpload: React.FC<FileUploadProps> = React.memo(({
   selectedFile,
   onFileSelect,
+  onNext,
   maxFileSize = 3 * 1024 * 1024 * 1024, // 3GB
   acceptedFormats = [
     // 音声・動画ファイル
@@ -65,8 +69,39 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [audioRetryCount, setAudioRetryCount] = useState(0);
+  const [audioError, setAudioError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // クリーンアップ処理: blobURLのメモリリークを防止
+  useEffect(() => {
+    return () => {
+      // コンポーネントのアンマウント時のクリーンアップ
+      if (audioRef.current?.src?.startsWith('blob:')) {
+        URL.revokeObjectURL(audioRef.current.src);
+        console.log('クリーンアップ: audioRef blobURL解放');
+      }
+      
+      // selectedFileのpathがblobURLの場合もクリーンアップ
+      if (selectedFile?.path?.startsWith('blob:')) {
+        URL.revokeObjectURL(selectedFile.path);
+        console.log('クリーンアップ: selectedFile blobURL解放');
+      }
+    };
+  }, []);
+
+  // selectedFileが変更された時のクリーンアップ
+  useEffect(() => {
+    return () => {
+      if (audioRef.current?.src?.startsWith('blob:')) {
+        URL.revokeObjectURL(audioRef.current.src);
+        audioRef.current.src = '';
+        console.log('ファイル変更時: audioRef blobURL解放');
+      }
+      setIsPlaying(false);
+    };
+  }, [selectedFile?.id]);
 
   // ファイルタイプの判定
   const getFileType = (fileName: string): 'audio' | 'video' | 'document' => {
@@ -218,25 +253,86 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     
     try {
       if (extension === 'txt') {
-        // テキストファイルの場合、UTF-8として読み込み
-        let text = '';
-        try {
-          text = await file.text();
-          if (!text || text.trim().length === 0) {
-            throw new Error('Empty file');
-          }
-        } catch (error) {
-          // UTF-8で読み込めない場合は、ArrayBufferから手動でデコード
-          try {
-            const buffer = await file.arrayBuffer();
-            const decoder = new TextDecoder('utf-8');
-            text = decoder.decode(buffer);
-          } catch (decodeError) {
-            text = '※テキストファイルの内容を読み取れませんでした。UTF-8形式で保存してください。';
-          }
-        }
+        // テキストファイルの場合、encoding-japaneseで適切な文字エンコーディング処理
+        console.log('テキストファイル処理開始:', {
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type
+        });
         
-        return text || '※テキストファイルの内容を読み取れませんでした。';
+        try {
+          // ArrayBufferとして読み込み
+          const buffer = await file.arrayBuffer();
+          const uint8Array = new Uint8Array(buffer);
+          
+          // encoding-japaneseで文字エンコーディングを自動判定
+          const detectedEncoding = Encoding.detect(uint8Array);
+          console.log('文字エンコーディング判定結果:', detectedEncoding);
+          
+          let text = '';
+          
+          if (detectedEncoding) {
+            // 判定されたエンコーディングでデコード
+            const unicodeArray = Encoding.convert(uint8Array, {
+              to: 'UNICODE',
+              from: detectedEncoding
+            });
+            text = Encoding.codeToString(unicodeArray);
+            console.log('文字エンコーディング変換成功:', {
+              fromEncoding: detectedEncoding,
+              textLength: text.length,
+              textPreview: text.substring(0, 100)
+            });
+          } else {
+            // 判定に失敗した場合は複数のエンコーディングを試行
+            const encodings = ['UTF8', 'SJIS', 'EUCJP', 'JIS'];
+            
+            for (const encoding of encodings) {
+              try {
+                const unicodeArray = Encoding.convert(uint8Array, {
+                  to: 'UNICODE',
+                  from: encoding
+                });
+                const testText = Encoding.codeToString(unicodeArray);
+                
+                // 文字化けチェック（簡易版）
+                if (testText && testText.length > 0 && !testText.includes('�')) {
+                  text = testText;
+                  console.log('文字エンコーディング試行成功:', {
+                    encoding: encoding,
+                    textLength: text.length,
+                    textPreview: text.substring(0, 100)
+                  });
+                  break;
+                }
+              } catch (error) {
+                console.warn(`エンコーディング ${encoding} での変換に失敗:`, error);
+                continue;
+              }
+            }
+          }
+          
+          if (!text || text.trim().length === 0) {
+            throw new Error('テキストの抽出に失敗しました');
+          }
+          
+          return text;
+          
+        } catch (error) {
+          console.error('テキストファイル処理エラー:', error);
+          // フォールバック: 従来の方法を試行
+          try {
+            const text = await file.text();
+            if (text && text.trim().length > 0) {
+              console.log('フォールバック処理成功');
+              return text;
+            }
+          } catch (fallbackError) {
+            console.error('フォールバック処理も失敗:', fallbackError);
+          }
+          
+          return '※テキストファイルの内容を読み取れませんでした。ファイルの文字エンコーディングを確認してください。';
+        }
       } else if (extension === 'md') {
         // Markdownファイルの場合
         const text = await file.text();
@@ -249,6 +345,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         // DOCXファイルの場合
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.extractRawText({ arrayBuffer });
+        
+        // 抽出されたテキストを返す
         return result.value;
       } else {
         throw new Error('サポートされていない文書形式です');
@@ -337,17 +435,48 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         try {
           // Electron環境では安全にファイルパスを生成
           if (typeof window !== 'undefined' && (window as any).electronAPI) {
-            // Electron環境では rawFile を直接使用し、パスは空文字列にする
+            // Electron環境では一意の識別子を生成してpathに設定
             // 実際の再生時は rawFile から blob URL を生成する
-            blobUrl = '';
+            const timestamp = Date.now();
+            const randomId = Math.random().toString(36).substring(2, 15);
+            
+            // 日本語ファイル名を安全にエンコード
+            const safeFileName = encodeURIComponent(file.name).replace(/[.*+?^${}()|[\]\\]/g, '_');
+            const uniqueId = `${safeFileName}-${timestamp}-${randomId}`;
+            
+            blobUrl = `electron-file://${uniqueId}`;
+            console.log('Electron環境: ファイル処理開始', {
+              originalFileName: file.name,
+              safeFileName: safeFileName,
+              fileSize: file.size,
+              fileType: file.type,
+              uniqueId: uniqueId,
+              pathIdentifier: blobUrl
+            });
           } else {
             blobUrl = URL.createObjectURL(file);
+            console.log('ブラウザ環境: blobURL生成', { 
+              fileName: file.name,
+              blobUrl: blobUrl 
+            });
           }
           duration = await getAudioDuration(file);
         } catch (error) {
-          console.error('Failed to process file:', error);
+          console.error('ファイル処理エラー:', error);
           // エラーが発生してもファイル処理は続行
-          blobUrl = '';
+          if (typeof window !== 'undefined' && (window as any).electronAPI) {
+            const timestamp = Date.now();
+            const randomId = Math.random().toString(36).substring(2, 15);
+            const safeFileName = encodeURIComponent(file.name).replace(/[.*+?^${}()|[\]\\]/g, '_');
+            blobUrl = `electron-file://${safeFileName}-${timestamp}-${randomId}`;
+            console.log('Electron環境: エラー時のフォールバック識別子生成', {
+              originalFileName: file.name,
+              safeFileName: safeFileName,
+              fallbackPath: blobUrl
+            });
+          } else {
+            blobUrl = '';
+          }
           duration = 0;
         }
       }
@@ -391,8 +520,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         
         setTimeout(() => {
           setIsUploading(false);
-          onFileSelect(audioFile);
-          setValidationErrors([]);
+      onFileSelect(audioFile);
+      setValidationErrors([]);
         }, 1000);
       } else {
         setIsUploading(false);
@@ -577,54 +706,221 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   }, [processFile]);
 
   // 音声再生制御
-  const togglePlayback = useCallback(() => {
+  const togglePlayback = useCallback(async () => {
     if (!selectedFile || selectedFile.metadata?.fileType !== 'audio') {
       return;
     }
 
     if (isPlaying) {
-      audioRef.current?.pause();
-      setIsPlaying(false);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
       return;
     }
 
-    // Electron環境では rawFile から blob URL を動的に生成
-    if (typeof window !== 'undefined' && (window as any).electronAPI && selectedFile.rawFile) {
-      try {
-        const blobUrl = URL.createObjectURL(selectedFile.rawFile);
-        if (audioRef.current) {
-          audioRef.current.src = blobUrl;
-          audioRef.current.play().catch((error) => {
-            console.error('Audio play error:', error);
-            setIsPlaying(false);
-            URL.revokeObjectURL(blobUrl);
-          });
-          setIsPlaying(true);
-        }
-      } catch (error) {
-        console.error('Failed to create blob URL for audio playback:', error);
-        setIsPlaying(false);
-      }
-    } else if (audioRef.current && selectedFile.path) {
-      // 通常のブラウザ環境
-      audioRef.current.play().catch((error) => {
-        console.error('Audio play error:', error);
-        setIsPlaying(false);
-      });
-      setIsPlaying(true);
+    if (!audioRef.current) {
+      return;
     }
-  }, [isPlaying, selectedFile]);
+
+    try {
+      // エラー状態をクリア
+      setAudioError(null);
+      
+      // 既存の再生を完全に停止
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      
+      // 既存のソースをクリア
+      if (audioRef.current.src) {
+        if (audioRef.current.src.startsWith('blob:')) {
+          URL.revokeObjectURL(audioRef.current.src);
+        }
+        audioRef.current.src = '';
+      }
+      
+      // Electron環境での音声ソース設定
+      if (typeof window !== 'undefined' && (window as any).electronAPI && selectedFile.rawFile) {
+        console.log('Electron環境: rawFileからblobURL生成開始', {
+          fileName: selectedFile.name,
+          fileSize: selectedFile.rawFile.size,
+          fileType: selectedFile.rawFile.type,
+          pathIdentifier: selectedFile.path,
+          retryCount: audioRetryCount
+        });
+        
+        try {
+          const blobUrl = URL.createObjectURL(selectedFile.rawFile);
+          audioRef.current.src = blobUrl;
+          console.log('Electron環境: blobURL設定完了', { blobUrl });
+        } catch (blobError) {
+          console.error('Electron環境: blobURL生成エラー:', blobError);
+          throw new Error('音声ファイルの読み込みに失敗しました');
+        }
+      } else if (selectedFile.path && selectedFile.path !== '' && !selectedFile.path.startsWith('electron-file://')) {
+        // 通常のブラウザ環境（blob:またはhttp:プロトコル）
+        console.log('ブラウザ環境: pathからソース設定', { path: selectedFile.path });
+        audioRef.current.src = selectedFile.path;
+      } else if (selectedFile.path && selectedFile.path.startsWith('electron-file://') && selectedFile.rawFile) {
+        // Electron環境でelectron-file://プロトコルの場合
+        console.log('Electron環境: electron-file://プロトコル検出、rawFileからblobURL生成', {
+          pathIdentifier: selectedFile.path,
+          fileName: selectedFile.name,
+          retryCount: audioRetryCount
+        });
+        
+        try {
+          const blobUrl = URL.createObjectURL(selectedFile.rawFile);
+          audioRef.current.src = blobUrl;
+          console.log('Electron環境: electron-file://からblobURL設定完了', { blobUrl });
+        } catch (blobError) {
+          console.error('Electron環境: electron-file://からblobURL生成エラー:', blobError);
+          throw new Error('音声ファイルの読み込みに失敗しました');
+        }
+      } else {
+        console.error('音声ソースが設定できません', {
+          hasElectronAPI: !!(typeof window !== 'undefined' && (window as any).electronAPI),
+          hasRawFile: !!selectedFile.rawFile,
+          path: selectedFile.path,
+          pathStartsWithElectron: selectedFile.path?.startsWith('electron-file://'),
+          retryCount: audioRetryCount
+        });
+        throw new Error('音声ファイルが見つかりません');
+      }
+      
+      // メタデータがロードされるまで待つ
+      const loadPromise = new Promise<void>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('音声ファイルの読み込みがタイムアウトしました'));
+        }, 10000); // 10秒に延長
+        
+        const onLoadedData = () => {
+          clearTimeout(timeoutId);
+          audioRef.current?.removeEventListener('loadeddata', onLoadedData);
+          audioRef.current?.removeEventListener('error', onError);
+          audioRef.current?.removeEventListener('canplay', onCanPlay);
+          console.log('音声ファイルの読み込み完了');
+          resolve();
+        };
+        
+        const onCanPlay = () => {
+          clearTimeout(timeoutId);
+          audioRef.current?.removeEventListener('loadeddata', onLoadedData);
+          audioRef.current?.removeEventListener('error', onError);
+          audioRef.current?.removeEventListener('canplay', onCanPlay);
+          console.log('音声ファイルの再生準備完了');
+          resolve();
+        };
+        
+        const onError = (e: Event) => {
+          clearTimeout(timeoutId);
+          audioRef.current?.removeEventListener('loadeddata', onLoadedData);
+          audioRef.current?.removeEventListener('error', onError);
+          audioRef.current?.removeEventListener('canplay', onCanPlay);
+          
+          const target = e.target as HTMLAudioElement;
+          const error = target.error;
+          let errorMessage = '音声ファイルの読み込みに失敗しました';
+          
+          if (error) {
+            switch (error.code) {
+              case error.MEDIA_ERR_ABORTED:
+                errorMessage = '音声ファイルの読み込みが中断されました';
+                break;
+              case error.MEDIA_ERR_NETWORK:
+                errorMessage = 'ネットワークエラーが発生しました';
+                break;
+              case error.MEDIA_ERR_DECODE:
+                errorMessage = '音声ファイルの形式がサポートされていません';
+                break;
+              case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                errorMessage = '音声ファイルが見つからないか、サポートされていません';
+                break;
+            }
+          }
+          
+          console.error('音声読み込みエラー:', errorMessage, { 
+            errorCode: error?.code,
+            src: target.src,
+            fileName: selectedFile.name,
+            retryCount: audioRetryCount
+          });
+          reject(new Error(errorMessage));
+        };
+        
+        if (audioRef.current) {
+          audioRef.current.addEventListener('loadeddata', onLoadedData);
+          audioRef.current.addEventListener('canplay', onCanPlay);
+          audioRef.current.addEventListener('error', onError);
+          audioRef.current.load(); // 明示的にロードを開始
+        } else {
+          reject(new Error('音声要素が見つかりません'));
+        }
+      });
+      
+      await loadPromise;
+      
+      // 再生開始
+      await audioRef.current.play();
+      setIsPlaying(true);
+      setAudioRetryCount(0); // 成功時は再試行カウントをリセット
+      console.log('音声再生開始');
+      
+    } catch (error) {
+      console.error('音声再生エラー:', error);
+      setIsPlaying(false);
+      
+      // エラー時のクリーンアップ
+      if (audioRef.current?.src?.startsWith('blob:')) {
+        URL.revokeObjectURL(audioRef.current.src);
+        audioRef.current.src = '';
+      }
+      
+      const errorMessage = error instanceof Error ? error.message : '音声の再生に失敗しました';
+      setAudioError(errorMessage);
+      
+      // 再試行ロジック（最大3回まで）
+      if (audioRetryCount < 3) {
+        console.log(`音声再生再試行 ${audioRetryCount + 1}/3`);
+        setAudioRetryCount(prev => prev + 1);
+        
+        // 短い遅延後に再試行
+        setTimeout(() => {
+          console.log('音声再生の再試行を実行中...');
+          togglePlayback();
+        }, 1000 * (audioRetryCount + 1)); // 1秒, 2秒, 3秒の遅延
+      } else {
+        // 最大再試行回数に達した場合
+        console.error('音声再生の最大再試行回数に達しました');
+        setAudioRetryCount(0);
+        alert(`音声再生エラー: ${errorMessage}\n\n再試行回数が上限に達しました。ファイルを再選択してください。`);
+      }
+    }
+  }, [selectedFile, isPlaying, audioRetryCount]);
 
   // ファイル削除
   const handleFileRemove = useCallback(() => {
     if (selectedFile) {
+      // 音声再生を停止
+      if (isPlaying && audioRef.current) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+      
+      // blob URLをクリーンアップ
       if (selectedFile.path) {
         URL.revokeObjectURL(selectedFile.path);
       }
+      
+      // 音声要素のソースもクリア
+      if (audioRef.current) {
+        audioRef.current.src = '';
+      }
+      
       onFileSelect(null);
       setValidationErrors([]);
     }
-  }, [selectedFile, onFileSelect]);
+  }, [selectedFile, onFileSelect, isPlaying]);
 
   // ファイルサイズフォーマット
   const formatFileSize = (bytes: number): string => {
@@ -759,20 +1055,138 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                   onEnded={() => setIsPlaying(false)}
                   onError={(e) => {
                     const error = e.currentTarget.error;
-                    const errorMessage = error?.message || 'Unknown audio error';
-                    console.error('Audio playback error:', errorMessage);
+                    let errorMessage = '音声ファイルの再生に失敗しました';
+                    let errorDetails = '';
+                    
+                    if (error) {
+                      switch (error.code) {
+                        case error.MEDIA_ERR_ABORTED:
+                          errorMessage = '音声ファイルの読み込みが中断されました';
+                          errorDetails = 'ファイルの読み込みが中断されました。再度お試しください。';
+                          break;
+                        case error.MEDIA_ERR_NETWORK:
+                          errorMessage = 'ネットワークエラーが発生しました';
+                          errorDetails = 'ネットワークに問題があります。インターネット接続を確認してください。';
+                          break;
+                        case error.MEDIA_ERR_DECODE:
+                          errorMessage = '音声ファイルの形式がサポートされていません';
+                          errorDetails = 'この音声ファイルの形式はサポートされていません。MP3, WAV, M4A形式を使用してください。';
+                          break;
+                        case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                          errorMessage = '音声ファイルが見つからないか、サポートされていません';
+                          errorDetails = 'ファイルが見つからないか、この形式はサポートされていません。';
+                          break;
+                        default:
+                          errorMessage = '不明な音声エラーが発生しました';
+                          errorDetails = error.message || '詳細不明';
+                      }
+                    }
+                    
+                    console.error('Audio playback error:', {
+                      message: errorMessage,
+                      details: errorDetails,
+                      errorCode: error?.code,
+                      src: e.currentTarget.src,
+                      fileName: selectedFile.name,
+                      fileSize: selectedFile.size,
+                      fileType: selectedFile.metadata?.fileType,
+                      pathType: selectedFile.path?.startsWith('electron-file://') ? 'electron-file' : 
+                                selectedFile.path?.startsWith('blob:') ? 'blob' : 'other',
+                      hasRawFile: !!selectedFile.rawFile
+                    });
+                    
                     setIsPlaying(false);
+                    
+                    // エラー時にソースをクリア
+                    if (e.currentTarget.src?.startsWith('blob:')) {
+                      URL.revokeObjectURL(e.currentTarget.src);
+                      e.currentTarget.src = '';
+                    }
+                    
+                    // Windows環境でのElectronエラーの場合、特別な処理
+                    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+                      console.warn('Windows Electronでの音声エラー - 回避策を試行中...');
+                      // 短い遅延後に再試行する可能性を示唆
+                      setTimeout(() => {
+                        console.log('音声エラー回復を試行可能です');
+                      }, 1000);
+                    }
                   }}
                   onLoadStart={() => {
-                    console.log('Audio loading started');
+                    console.log('Audio loading started', {
+                      fileName: selectedFile?.name,
+                      pathType: selectedFile?.path?.startsWith('electron-file://') ? 'electron-file' : 
+                                selectedFile?.path?.startsWith('blob:') ? 'blob' : 'other'
+                    });
                   }}
                   onCanPlay={() => {
-                    console.log('Audio can start playing');
+                    console.log('Audio can start playing', {
+                      fileName: selectedFile?.name,
+                      duration: audioRef.current?.duration,
+                      readyState: audioRef.current?.readyState
+                    });
+                  }}
+                  onAbort={() => {
+                    console.log('Audio loading aborted', {
+                      fileName: selectedFile?.name,
+                      src: audioRef.current?.src
+                    });
+                    setIsPlaying(false);
                   }}
                   style={{ display: 'none' }}
-                  preload="metadata"
+                  preload="none"
+                  controls={false}
                 />
               )}
+              
+              {/* 音声エラー表示 */}
+              {audioError && selectedFile.metadata?.fileType === 'audio' && (
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                  <AlertTitle>音声再生エラー</AlertTitle>
+                  {audioError}
+                  {audioRetryCount > 0 && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        再試行中... ({audioRetryCount}/3)
+                      </Typography>
+                    </Box>
+                  )}
+                </Alert>
+              )}
+              
+              {/* 次へボタン */}
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                <Button
+                  variant="contained"
+                  size="large"
+                  onClick={() => {
+                    console.log('次へボタンがクリックされました', { selectedFile: !!selectedFile, onNext: !!onNext });
+                    if (onNext) {
+                      onNext();
+                    } else {
+                      console.error('onNext関数が定義されていません');
+                    }
+                  }}
+                  disabled={!selectedFile}
+                  sx={{
+                    py: 1.5,
+                    px: 4,
+                    fontSize: '1.1rem',
+                    fontWeight: 600,
+                    borderRadius: 3,
+                    background: 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #5cb85c 0%, #46a049 100%)',
+                    },
+                    '&:disabled': {
+                      background: 'rgba(0, 0, 0, 0.12)',
+                      color: 'rgba(0, 0, 0, 0.26)',
+                    },
+                  }}
+                >
+                  次へ
+                </Button>
+              </Box>
             </CardContent>
           </Card>
         </Zoom>
@@ -880,4 +1294,4 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       />
     </Box>
   );
-}; 
+}); 

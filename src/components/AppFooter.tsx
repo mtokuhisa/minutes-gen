@@ -237,7 +237,15 @@ export const AppFooter: React.FC = () => {
                 size="small"
                 startIcon={<Help />}
                 sx={getButtonColors()}
-                onClick={() => window.open('overview.html', '_blank')}
+                onClick={() => {
+                  try {
+                    // Electron環境での適切なパス処理
+                    const overviewPath = '../overview.html';
+                    window.open(overviewPath, '_blank');
+                  } catch (error) {
+                    console.error('概要ページの表示に失敗しました:', error);
+                  }
+                }}
               >
                 概要と使い方
               </Button>
@@ -245,7 +253,15 @@ export const AppFooter: React.FC = () => {
                 variant="outlined"
                 size="small"
                 sx={getButtonColors()}
-                onClick={() => window.open('technical.html', '_blank')}
+                onClick={() => {
+                  try {
+                    // Electron環境での適切なパス処理  
+                    const technicalPath = '../technical.html';
+                    window.open(technicalPath, '_blank');
+                  } catch (error) {
+                    console.error('技術仕様ページの表示に失敗しました:', error);
+                  }
+                }}
               >
                 技術仕様/更新履歴
               </Button>

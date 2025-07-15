@@ -18,8 +18,9 @@ function createWindow() {
     // 開発モードは Vite Dev サーバーに接続
     win.loadURL('http://localhost:3000/');
   } else {
-    // プロダクションビルドは dist/index.html を読み込む
-    win.loadFile(path.join(__dirname, 'index.html'));
+    // プロダクションビルドは index.html を読み込む
+    const indexPath = path.join(__dirname, 'index.html');
+    win.loadFile(indexPath);
   }
 
   // 外部リンクはデフォルトブラウザで開く

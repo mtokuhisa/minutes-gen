@@ -54,7 +54,13 @@ export const useAppState = () => {
   const [authService] = useState(() => AuthService.getInstance());
   
   // 状態管理
-  const [currentStep, setCurrentStep] = useState(0);
+  const [currentStep, setCurrentStepState] = useState(0);
+  
+  // setCurrentStepをラップしてログを追加
+  const setCurrentStep = useCallback((step: number) => {
+    console.log('🔄 useAppState setCurrentStep:', { from: currentStep, to: step });
+    setCurrentStepState(step);
+  }, [currentStep]);
   const [selectedFile, setSelectedFile] = useState<AudioFile | null>(null);
   const [processingOptions, setProcessingOptions] = useState<ProcessingOptions>({
     // speed: 'normal', // 削除（1倍速固定）
@@ -173,7 +179,6 @@ export const useAppState = () => {
 
     setIsProcessing(true);
     setError(null);
-    setCurrentStep(2);
 
     try {
       let transcription: string;
@@ -220,7 +225,7 @@ export const useAppState = () => {
       );
 
       setResults(minutes);
-      setCurrentStep(3); // 結果画面へ
+      setCurrentStep(4); // 結果画面へ
 
     } catch (err: any) {
       console.error('処理エラー:', err);

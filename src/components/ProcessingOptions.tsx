@@ -82,6 +82,7 @@ import {
 interface ProcessingOptionsProps {
   options: ProcessingOptionsType;
   onOptionsChange: (options: ProcessingOptionsType) => void;
+  onNext?: () => void;
   disabled?: boolean;
 }
 
@@ -151,6 +152,7 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
 export const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
   options,
   onOptionsChange,
+  onNext,
   disabled = false,
 }) => {
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -815,6 +817,41 @@ export const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
           </Box>
         </CardContent>
       </Card>
+
+      {/* AI解析開始ボタン */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
+        <Button
+          variant="contained"
+          size="large"
+          onClick={() => {
+            console.log('AI解析開始ボタンがクリックされました');
+            if (onNext) {
+              onNext();
+            } else {
+              console.error('onNext関数が定義されていません');
+            }
+          }}
+          disabled={disabled}
+          sx={{
+            py: 1.5,
+            px: 4,
+            fontSize: '1.1rem',
+            fontWeight: 600,
+            borderRadius: 3,
+            background: 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)',
+            '&:hover': {
+              background: 'linear-gradient(135deg, #5cb85c 0%, #46a049 100%)',
+            },
+            '&:disabled': {
+              background: 'rgba(0, 0, 0, 0.12)',
+              color: 'rgba(0, 0, 0, 0.26)',
+            },
+          }}
+          startIcon={<AutoAwesome />}
+        >
+          AI解析開始
+        </Button>
+      </Box>
     </Box>
   );
 }; 

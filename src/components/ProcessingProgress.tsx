@@ -221,25 +221,38 @@ export const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
   detailedProgress,
   selectedFile,
 }) => {
+  // Hooksを先に呼び出す（条件付きで呼び出してはいけない）
   const [logsExpanded, setLogsExpanded] = useState(false);
   const [segmentsExpanded, setSegmentsExpanded] = useState(false);
-
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [fixedStartTime] = useState(progress.startedAt);
-  
-  const currentStage = stageConfig[progress.stage];
-  const isCompleted = progress.stage === 'completed';
-  const hasError = progress.stage === 'error';
+  const [fixedStartTime] = useState(progress?.startedAt || new Date());
 
-  // 経過時間の計算
+  // 経過時間の計算（progressがnullでも呼び出す）
   useEffect(() => {
+    if (!progress) return;
+    
     const timer = setInterval(() => {
       const elapsed = Math.floor((Date.now() - fixedStartTime.getTime()) / 1000);
       setElapsedTime(elapsed);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [fixedStartTime]);
+  }, [fixedStartTime, progress]);
+
+  // progressがnullの場合のデフォルト値
+  if (!progress) {
+    return (
+      <Box sx={{ width: '100%', textAlign: 'center', py: 4 }}>
+        <Typography variant="h6" sx={{ color: 'text.secondary' }}>
+          処理を開始しています...
+        </Typography>
+      </Box>
+    );
+  }
+  
+  const currentStage = stageConfig[progress.stage];
+  const isCompleted = progress.stage === 'completed';
+  const hasError = progress.stage === 'error';
 
 
 
@@ -299,9 +312,9 @@ export const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
                 開始時刻: {fixedStartTime.toLocaleTimeString()}
               </Typography>
               {progress.stage === 'transcribing' && progress.currentTask.includes('ffmpeg.wasm') && (
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                   音声ファイルを自動分割処理中...
-                </Typography>
+              </Typography>
               )}
             </Box>
           </Box>
@@ -460,11 +473,11 @@ export const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
               <CheckCircle sx={{ color: statusColors.completed, mr: 2, fontSize: 32 }} />
               <Box>
                 <Typography variant="h6" sx={{ fontWeight: 600, color: statusColors.completed }}>
-                  🎉 処理が完了しました！
-                </Typography>
+            🎉 処理が完了しました！
+          </Typography>
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  議事録の生成に成功しました。結果を確認してください。
-                </Typography>
+            議事録の生成に成功しました。結果を確認してください。
+          </Typography>
               </Box>
             </Box>
             
@@ -498,11 +511,11 @@ export const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
               <Error sx={{ color: statusColors.error, mr: 2, fontSize: 24 }} />
               <Typography variant="h6" sx={{ fontWeight: 600, color: statusColors.error }}>
                 エラーが発生しました
-              </Typography>
+          </Typography>
             </Box>
             <Typography variant="body2" sx={{ mb: 2 }}>
-              {progress.currentTask}
-            </Typography>
+            {progress.currentTask}
+          </Typography>
             
             {/* 自動復旧機能 */}
             <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(255, 193, 7, 0.1)', borderRadius: 1 }}>

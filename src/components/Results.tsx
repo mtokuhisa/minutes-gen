@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { TTS } from './TTS';
 import { InfographicGenerator } from './InfographicGenerator';
 import {
@@ -69,6 +69,7 @@ import {
 } from '@mui/icons-material';
 import { MinutesData, OutputFormat, Participant, KeyPoint, ActionItem } from '../types';
 import { useTheme } from '../theme';
+import { detectTextCorruption, generateCorruptionWarning, CorruptionDetectionResult } from '../utils/textCorruptionDetector';
 
 // ===========================================
 // MinutesGen v1.0 - 結果表示
@@ -145,58 +146,76 @@ export const Results: React.FC<ResultsProps> = ({
   const [selectedFormat, setSelectedFormat] = useState<OutputFormat>('markdown');
   const [emailData, setEmailData] = useState({ to: '', subject: '', body: '' });
 
-  const handleTabChange = useCallback((event: React.SyntheticEvent, newValue: number) => {
+  // 安全なresults確認
+  if (!results) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+        <Typography variant="h6" color="text.secondary">
+          結果データが見つかりません
+        </Typography>
+      </Box>
+    );
+  }
+
+  // 文字化けチェック結果を取得
+  const getCorruptionCheck = () => {
+    try {
+      const markdownOutput = results.outputs?.find(output => output.format === 'markdown');
+      const minutesText = markdownOutput?.content || results.summary || '';
+      
+      // AIが文字化けエラーを検出した場合
+      if (minutesText.includes('【エラー：文字化けを検出しました】')) {
+        return {
+          hasError: true,
+          errorMessage: minutesText,
+          isAIDetected: true
+        };
+      }
+
+      // フロントエンドでの文字化けチェック
+      const corruptionResult = detectTextCorruption(minutesText);
+      if (corruptionResult.isCorrupted) {
+        const warningMessage = generateCorruptionWarning(corruptionResult);
+        return {
+          hasError: true,
+          errorMessage: warningMessage,
+          isAIDetected: false
+        };
+      }
+
+      return { hasError: false, errorMessage: '', isAIDetected: false };
+    } catch (error) {
+      console.error('文字化けチェックエラー:', error);
+      return { hasError: false, errorMessage: '', isAIDetected: false };
+    }
+  };
+
+  const corruptionCheck = getCorruptionCheck();
+
+  // 議事録内容の文字化けチェック
+  const checkMinutesForCorruption = () => {
+    return corruptionCheck;
+  };
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setCurrentTab(newValue);
-  }, []);
+  };
 
-  const handleDownload = useCallback((format: OutputFormat) => {
+  const handleDownload = (format: OutputFormat) => {
     onDownload(format);
-  }, [onDownload]);
+  };
 
-  const handleShare = useCallback(() => {
+  const handleShare = () => {
     setShareDialogOpen(true);
-  }, []);
+  };
 
-  const handlePreview = useCallback((format: OutputFormat) => {
+  const handlePreview = (format: OutputFormat) => {
     setSelectedFormat(format);
     setPreviewDialogOpen(true);
-  }, []);
+  };
 
-  const handleCopyToClipboard = useCallback((text: string) => {
+  const handleCopyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-  }, []);
-
-  const formatDuration = (seconds: number): string => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
-
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const getImportanceColor = (importance: string): 'error' | 'warning' | 'success' | 'default' => {
-    switch (importance) {
-      case 'high': return 'error';
-      case 'medium': return 'warning';
-      case 'low': return 'success';
-      default: return 'default';
-    }
-  };
-
-  const getPriorityColor = (priority: string): 'error' | 'warning' | 'info' | 'success' | 'default' => {
-    switch (priority) {
-      case 'urgent': return 'error';
-      case 'high': return 'warning';
-      case 'medium': return 'info';
-      case 'low': return 'success';
-      default: return 'default';
-    }
   };
 
   // 時間と認識率の表記を除去するヘルパー関数
@@ -205,6 +224,7 @@ export const Results: React.FC<ResultsProps> = ({
       return '';
     }
     
+    // 文字化け修正を一時的に無効化（デバッグ用）
     return text
       // [0:00 - 0:30] 95% のような表記を除去
       .replace(/\[\d+:\d+\s*-\s*\d+:\d+\]\s*\d+%\s*/g, '')
@@ -222,60 +242,66 @@ export const Results: React.FC<ResultsProps> = ({
 
   // 表示用の改行処理された文字起こしテキスト
   const getTranscriptionDisplayText = (): string => {
-    let rawText = '';
-    
-    // 配列形式の文字起こしデータから表示用テキストを生成
-    if (Array.isArray(results.transcription)) {
-      rawText = results.transcription
-        .map(segment => cleanTranscriptionText(segment.text))
-        .filter(text => text && text.trim().length > 0)
-        .join('\n\n');
-    } else {
-      // 後方互換性のため、文字列形式もサポート
-      rawText = results.transcription as string;
-      if (!rawText || typeof rawText !== 'string') {
-        return '';
+    try {
+      let rawText = '';
+      
+      // 配列形式の文字起こしデータから表示用テキストを生成
+      if (Array.isArray(results.transcription)) {
+        rawText = results.transcription
+          .map(segment => cleanTranscriptionText(segment?.text || ''))
+          .filter(text => text && text.trim().length > 0)
+          .join('\n\n');
+      } else {
+        // 後方互換性のため、文字列形式もサポート
+        rawText = results.transcription as string;
+        if (!rawText || typeof rawText !== 'string') {
+          return '';
+        }
+        rawText = cleanTranscriptionText(rawText);
       }
-      rawText = cleanTranscriptionText(rawText);
+      
+      // 表示用の改行処理（読みやすさを重視）
+      return rawText
+        // 句読点での改行
+        .replace(/([。！？])\s*/g, '$1\n\n')
+        // 長い文での適切な改行
+        .replace(/(.{60,}?)([、])/g, '$1$2\n')
+        // 敬語での改行
+        .replace(/(です|ます|である|だった|でした|ました|ません|でしょう)([。、]?)\s*/g, '$1$2\n')
+        // 接続詞での改行
+        .replace(/\s*(そして|また|しかし|ただし|なお|さらに|一方|他方|つまり|すなわち|要するに|このように|このため|したがって|ゆえに)/g, '\n\n$1')
+        // 長すぎる行での改行
+        .replace(/(.{80,}?)(\s)/g, '$1\n')
+        // 過度な改行を整理
+        .replace(/\n{4,}/g, '\n\n')
+        // 行頭の空白を除去
+        .replace(/^\s+/gm, '')
+        .trim();
+    } catch (error) {
+      console.error('文字起こしテキスト処理エラー:', error);
+      return '文字起こしデータの処理中にエラーが発生しました。';
     }
-    
-    // 表示用の改行処理（読みやすさを重視）
-    return rawText
-      // 句読点での改行
-      .replace(/([。！？])\s*/g, '$1\n\n')
-      // 長い文での適切な改行
-      .replace(/(.{60,}?)([、])/g, '$1$2\n')
-      // 敬語での改行
-      .replace(/(です|ます|である|だった|でした|ました|ません|でしょう)([。、]?)\s*/g, '$1$2\n')
-      // 接続詞での改行
-      .replace(/\s*(そして|また|しかし|ただし|なお|さらに|一方|他方|つまり|すなわち|要するに|このように|このため|したがって|ゆえに)/g, '\n\n$1')
-      // 長すぎる行での改行
-      .replace(/(.{80,}?)(\s)/g, '$1\n')
-      // 過度な改行を整理
-      .replace(/\n{4,}/g, '\n\n')
-      // 行頭の空白を除去
-      .replace(/^\s+/gm, '')
-      .trim();
   };
 
   // ダウンロード用のMarkdown形式文字起こし
   const getTranscriptionMarkdown = (): string => {
-    const displayText = getTranscriptionDisplayText();
-    
-    // 各行を処理して空行をフィルタリング
-    const lines = displayText.split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
-    
-    // Markdown形式でヘッダーを追加
-    const markdownContent = `# 文字起こし原稿
+    try {
+      const displayText = getTranscriptionDisplayText();
+      
+      // 各行を処理して空行をフィルタリング
+      const lines = displayText.split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+      
+      // Markdown形式でヘッダーを追加
+      const markdownContent = `# 文字起こし原稿
 
-**開催日時**: ${results.date.toLocaleDateString('ja-JP', { 
+**開催日時**: ${results.date ? results.date.toLocaleDateString('ja-JP', { 
   year: 'numeric', 
   month: 'long', 
   day: 'numeric',
   weekday: 'long'
-})}
+}) : '不明'}
 
 **文字数**: ${lines.join('').length}文字
 
@@ -289,7 +315,11 @@ ${lines.join('\n\n')}
 
 *Generated by MinutesGen v1.0 - ${new Date().toLocaleDateString('ja-JP')}*`;
 
-    return markdownContent;
+      return markdownContent;
+    } catch (error) {
+      console.error('Markdown生成エラー:', error);
+      return '# 文字起こし原稿\n\nエラーが発生しました。';
+    }
   };
 
   const handleCopyTranscription = () => {
@@ -824,6 +854,12 @@ ${lines.join('\n\n')}
     return markdownOutput?.content || results.summary;
   };
 
+  // HTML議事録内容を取得
+  const getHTMLMinutes = (): string => {
+    const htmlOutput = results.outputs.find(output => output.format === 'html');
+    return htmlOutput?.content || generateEnhancedHTML(results);
+  };
+
   // MarkdownをHTMLに変換（簡易版）
   const convertMarkdownToHTML = (markdown: string): string => {
     return markdown
@@ -1086,6 +1122,70 @@ ${lines.join('\n\n')}
       <TabPanel value={currentTab} index={1}>
         {/* 議事録 */}
         <Grid container spacing={3}>
+          {/* 文字化けエラー警告 */}
+          {corruptionCheck.hasError && (
+            <Grid item xs={12}>
+              <Alert 
+                severity="error" 
+                sx={{ mb: 3 }}
+                action={
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button 
+                      color="inherit" 
+                      size="small" 
+                      onClick={onRestart}
+                      startIcon={<Refresh />}
+                    >
+                      再処理
+                    </Button>
+                    <Button 
+                      color="inherit" 
+                      size="small" 
+                      onClick={onBackToSettings}
+                      startIcon={<Settings />}
+                    >
+                      設定へ戻る
+                    </Button>
+                  </Box>
+                }
+              >
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+                  ⚠️ 文字化けエラーが検出されました
+                </Typography>
+                {corruptionCheck.isAIDetected ? (
+                  <Box component="pre" sx={{ 
+                    whiteSpace: 'pre-wrap', 
+                    fontFamily: 'monospace', 
+                    fontSize: '0.875rem',
+                    margin: 0,
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    padding: 2,
+                    borderRadius: 1,
+                    border: '1px solid rgba(255, 255, 255, 0.2)'
+                  }}>
+                    {corruptionCheck.errorMessage}
+                  </Box>
+                ) : (
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      {corruptionCheck.errorMessage}
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      対処方法：
+                    </Typography>
+                    <Typography variant="body2" component="div">
+                      <ol style={{ paddingLeft: '1.5rem', margin: 0 }}>
+                        <li>元のファイルの文字エンコーディングを確認してください</li>
+                        <li>UTF-8形式で保存し直してください</li>
+                        <li>再度アップロードしてください</li>
+                      </ol>
+                    </Typography>
+                  </Box>
+                )}
+              </Alert>
+            </Grid>
+          )}
+          
           {/* 議事録全文表示 */}
           <Grid item xs={12}>
             <Card sx={{ borderRadius: 2, mb: 3 }}>
@@ -1195,7 +1295,7 @@ ${lines.join('\n\n')}
                 >
                   <div
                     dangerouslySetInnerHTML={{
-                      __html: convertMarkdownToHTML(getMarkdownMinutes())
+                      __html: getHTMLMinutes()
                     }}
                   />
                 </Paper>
@@ -1210,72 +1310,87 @@ ${lines.join('\n\n')}
       <TabPanel value={currentTab} index={2}>
         {/* 出力 */}
         <Grid container spacing={3}>
-          {results.outputs.map((output, index) => {
-            const formatInfo = getOutputFormatInfo(output.format);
-            return (
-              <Grid item xs={12} sm={6} md={4} key={index}>
-                <Card 
-                  sx={{ 
-                    borderRadius: 2,
-                    height: '100%',
-                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                    '&:hover': {
-                      transform: 'translateY(-4px)',
-                      boxShadow: themeMode === 'dark' ? '0 8px 32px rgba(0, 0, 0, 0.3)' : '0 8px 32px rgba(0, 0, 0, 0.1)',
-                    },
-                  }}
-                >
-                  <CardContent sx={{ p: 3, textAlign: 'center' }}>
-                    <Box sx={{ fontSize: '3rem', mb: 2 }}>
-                      {formatOutputIcon(output.format)}
-                    </Box>
-                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
-                      {formatInfo.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      {formatInfo.description}
-                    </Typography>
-                    <Typography variant="caption" color="primary.main" sx={{ fontWeight: 600, mb: 2, display: 'block' }}>
-                      {formatInfo.extension} • {formatFileSize(output.size)}
-                    </Typography>
-                    
-                    {/* 機能タグ */}
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center', mb: 2 }}>
-                      {formatInfo.features.map((feature, idx) => (
-                        <Chip
-                          key={idx}
-                          label={feature}
+          {(results.outputs || []).map((outputItem, outputIndex) => {
+            try {
+              const outputFormatInfo = getOutputFormatInfo(outputItem.format);
+              return (
+                <Grid item xs={12} sm={6} md={4} key={outputIndex}>
+                  <Card 
+                    sx={{ 
+                      borderRadius: 2,
+                      height: '100%',
+                      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                      '&:hover': {
+                        transform: 'translateY(-4px)',
+                        boxShadow: themeMode === 'dark' ? '0 8px 32px rgba(0, 0, 0, 0.3)' : '0 8px 32px rgba(0, 0, 0, 0.1)',
+                      },
+                    }}
+                  >
+                    <CardContent sx={{ p: 3, textAlign: 'center' }}>
+                      <Box sx={{ fontSize: '3rem', mb: 2 }}>
+                        {formatOutputIcon(outputItem.format)}
+                      </Box>
+                      <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+                        {outputFormatInfo.name}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        {outputFormatInfo.description}
+                      </Typography>
+                      <Typography variant="caption" color="primary.main" sx={{ fontWeight: 600, mb: 2, display: 'block' }}>
+                        {outputFormatInfo.extension} • {formatFileSize(outputItem.size || 0)}
+                      </Typography>
+                      
+                      {/* 機能タグ */}
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center', mb: 2 }}>
+                        {(outputFormatInfo.features || []).map((feature, featureIdx) => (
+                          <Chip
+                            key={featureIdx}
+                            label={feature}
+                            size="small"
+                            variant="outlined"
+                            sx={{ fontSize: '0.7rem', height: 20 }}
+                          />
+                        ))}
+                      </Box>
+                      
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'stretch' }}>
+                        <Button
+                          variant="contained"
                           size="small"
+                          startIcon={<Download />}
+                          onClick={() => handleDownload(outputItem.format)}
+                          fullWidth
+                        >
+                          ダウンロード
+                        </Button>
+                        <Button
                           variant="outlined"
-                          sx={{ fontSize: '0.7rem', height: 20 }}
-                        />
-                      ))}
-                    </Box>
-                    
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'stretch' }}>
-                      <Button
-                        variant="contained"
-                        size="small"
-                        startIcon={<Download />}
-                        onClick={() => handleDownload(output.format)}
-                        fullWidth
-                      >
-                        ダウンロード
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<Visibility />}
-                        onClick={() => handlePreview(output.format)}
-                        fullWidth
-                      >
-                        プレビュー
-                      </Button>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            );
+                          size="small"
+                          startIcon={<Visibility />}
+                          onClick={() => handlePreview(outputItem.format)}
+                          fullWidth
+                        >
+                          プレビュー
+                        </Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            } catch (error) {
+              console.error('出力アイテム描画エラー:', error);
+              return (
+                <Grid item xs={12} sm={6} md={4} key={outputIndex}>
+                  <Card sx={{ borderRadius: 2, height: '100%' }}>
+                    <CardContent sx={{ p: 3, textAlign: 'center' }}>
+                      <Typography variant="body2" color="error">
+                        フォーマット表示エラー
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            }
           })}
         </Grid>
       </TabPanel>

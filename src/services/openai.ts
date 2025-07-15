@@ -9,7 +9,8 @@ import { AudioFile, ProcessingOptions, MinutesData, ProcessingProgress, Generate
 import { audioProcessor } from './audioProcessor';
 import { initializePromptStore, getActivePrompt, getAllPrompts } from './promptStore';
 import { ErrorHandler, APIError } from './errorHandler';
-import { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, Packer } from 'docx';
+import { md2docxService } from './md2docxService';
+import Encoding from 'encoding-japanese';
 // WebCodecsProcessor はメモリ消費の問題があるため使用を停止
 // import { WebCodecsProcessor } from './webCodecsProcessor';
 
@@ -253,7 +254,13 @@ export class OpenAIService {
           startedAt: new Date(),
         });
 
-        return response.data.text || response.data;
+        // 文字起こし結果を取得
+        const rawTranscriptionText = response.data.text || response.data;
+        
+        // 文字エンコーディングを適切に処理
+        const transcriptionText = this.processTextEncoding(rawTranscriptionText);
+        
+        return transcriptionText;
       },
       (message, attempt, maxRetries) => {
         // エラーハンドリング中の進捗更新
@@ -380,7 +387,11 @@ export class OpenAIService {
         // Content-Type ヘッダーはブラウザに任せる（boundary を正しく付与させる）
         const response = await this.api.post('/audio/transcriptions', formData);
 
-        const segmentText = (response.data.text as string).trim();
+        const rawSegmentText = (response.data.text as string).trim();
+        
+        // 文字エンコーディングを適切に処理
+        const segmentText = this.processTextEncoding(rawSegmentText);
+        
         if (segmentText) {
           transcriptSegments.push(segmentText);
         }
@@ -483,12 +494,13 @@ export class OpenAIService {
    - 必要に応じて見出しの階層構造を整理
    - 色彩やコントラストを考慮し、視認性を向上
 
-2. Word対応RTF形式:
-   - 一貫したフォントとサイズを使用
+2. Word対応Markdown形式:
+   - 適切な見出しレベル(#, ##, ###)を使用
+   - リスト、引用、コードブロックを効果的に活用
+   - 強調やリンクを適切に配置
+   - 表組みが必要な場合は整形して追加
+   - 日本語文書に適したMarkdown記法を使用
    - 段落スタイルを適切に設定し、文書構造を明確化
-   - ヘッダー、フッター、ページ番号を追加
-   - 必要に応じて目次を自動生成
-   - 余白、行間、段落間隔を適切に調整
 
 3. GitHub対応Markdown形式:
    - 適切な見出しレベル(#, ##, ###)を使用
@@ -524,15 +536,34 @@ export class OpenAIService {
 </html>
 \`\`\`
 
-\`\`\`rtf
-{\\\\rtf1\\\\ansi\\\\deff0
-{\\\\fonttbl{\\\\f0\\\\fnil\\\\fcharset128 MS Gothic;}{\\\\f1\\\\fnil\\\\fcharset0 Arial;}}
-{\\\\colortbl ;\\\\red0\\\\green0\\\\blue0;}
-\\\\viewkind4\\\\uc1\\\\pard\\\\cf1\\\\f0\\\\fs24
-// ここに日本語対応RTFフォーマットの文書を記述
-// 日本語文字は\\\\f0（MS Gothic）を使用
-// 英数字は\\\\f1（Arial）を使用
-}
+\`\`\`markdown
+# 議事録
+
+## 会議のタイトル
+YYYY年MM月DD日 会議議事録
+
+## 会議参加者
+- 参加者A
+- 参加者B
+- 参加者C
+
+## 要約
+会議の要約内容をここに記述
+
+## 詳細
+### 議題1
+詳細な内容を記述
+
+### 議題2
+詳細な内容を記述
+
+## 決定事項
+- 決定事項1
+- 決定事項2
+
+## ToDo
+- [ ] タスク1（担当者A）
+- [ ] タスク2（担当者B）
 \`\`\`
 
 \`\`\`markdown
@@ -564,25 +595,50 @@ export class OpenAIService {
 【⚠️ 重要：AI幻覚防止ルール】
 以下のルールを厳格に遵守してください：
 
-1. **文章補完の絶対禁止**
+1. **文字化けチェック（最重要）**
+   - 文字起こしテキストが人が話す言語として有り得ない文章の場合は、議事録生成を中止
+   - 以下のような文字化けパターンを検出した場合は、議事録生成を中止：
+     * 「�g�����X�N���v�g」のような文字化け文字列
+     * 「ƒAƒvƒŠƒP[ƒVƒ‡ƒ"」のような記号混在文
+     * 「¤¹¤ì¤Ï¤³¤ó¤Ë¤Á¤Ï」のような記号連続文
+     * 「䛣䛾䝥䝻䝆䜵䜽䝖」のような意味不明な文字列
+     * アセンブリ言語のような機械的文字列
+   - 文字化けを検出した場合は、以下の形式で明確にエラーを出力：
+     \`\`\`
+     【エラー：文字化けを検出しました】
+     原因：入力されたテキストに文字化けが含まれており、正確な議事録を生成できません。
+     対処方法：
+     1. 元のファイルの文字エンコーディングを確認してください
+     2. UTF-8形式で保存し直してください
+     3. 再度アップロードしてください
+     文字化け箇所：[具体的な文字化け部分を示す]
+     \`\`\`
+   - 文字化けが疑われる場合は、推測や補完を行わず、必ずエラーを出力
+
+2. **文章補完の絶対禁止**
    - 文字起こしテキストに含まれていない情報を勝手に追加しない
    - 推測や憶測による内容の補完を一切行わない
    - 不明瞭な部分は「[不明瞭]」として明記する
 
-2. **事実の忠実な再現**
+3. **事実の忠実な再現**
    - 文字起こしテキストの内容のみを基に議事録を作成
    - 文脈から推測される内容も追加しない
    - 専門用語や固有名詞は元のテキスト通りに記載
 
-3. **不完全な情報の扱い**
+4. **不完全な情報の扱い**
    - 音声が聞き取れない部分は「[音声不明瞭]」と記載
    - 文章が途中で切れている場合は「[発言途中]」と記載
    - 確実でない情報は記載しない
 
-4. **業務文書としての信頼性**
+5. **業務文書としての信頼性**
    - このアプリは業務で使用されるため、正確性を最優先
    - 勝手な文章生成や事実と異なる内容は厳禁
    - 元のテキストに忠実であることを最重要視
+
+6. **タイトル生成の重要ルール**
+   - 会議のタイトルは「YYYY年MM月DD日 会議議事録」の形式で生成
+   - 技術的な説明（「Microsoft Word対応」「Markdown文書」等）は絶対に使用しない
+   - 文字起こしテキストから会議の内容を判断し、適切な会議名を生成
 
 これらのルールに違反した場合、業務に重大な影響を与える可能性があります。`;
 
@@ -606,33 +662,41 @@ ${transcription}`;
   private parseMultiFormatResponse(content: string): {
     markdown: string;
     html: string;
-    rtf: string;
+    wordMarkdown: string;
   } {
     // コードブロック形式での抽出を試行
     const htmlMatch = content.match(/```html\s*([\s\S]*?)```/i);
-    const rtfMatch = content.match(/```rtf\s*([\s\S]*?)```/i);
-    const markdownMatch = content.match(/```markdown\s*([\s\S]*?)```/i);
+    const wordMarkdownMatch = content.match(/```markdown\s*([\s\S]*?)```/i);
+    const generalMarkdownMatch = content.match(/```markdown\s*([\s\S]*?)```/i);
     
     // フォールバック: 旧形式での抽出も試行
     const htmlFallback = content.match(/\[HTML_START\]([\s\S]*?)\[HTML_END\]/);
-    const rtfFallback = content.match(/\[RTF_START\]([\s\S]*?)\[RTF_END\]/);
     const markdownFallback = content.match(/\[MARKDOWN_START\]([\s\S]*?)\[MARKDOWN_END\]/);
     
     // 抽出結果を取得
     const extractedHtml = (htmlMatch?.[1] || htmlFallback?.[1] || '').trim();
-    const extractedRtf = (rtfMatch?.[1] || rtfFallback?.[1] || '').trim();
-    const extractedMarkdown = (markdownMatch?.[1] || markdownFallback?.[1] || '').trim();
+    const extractedWordMarkdown = (wordMarkdownMatch?.[1] || '').trim();
+    const extractedMarkdown = (generalMarkdownMatch?.[1] || markdownFallback?.[1] || '').trim();
     
     // デバッグログ
     console.log('マルチフォーマット抽出結果:', {
       html: extractedHtml.length > 0 ? `${extractedHtml.substring(0, 100)}...` : '空',
-      rtf: extractedRtf.length > 0 ? `${extractedRtf.substring(0, 100)}...` : '空',
+      wordMarkdown: extractedWordMarkdown.length > 0 ? `${extractedWordMarkdown.substring(0, 100)}...` : '空',
       markdown: extractedMarkdown.length > 0 ? `${extractedMarkdown.substring(0, 100)}...` : '空',
+    });
+    
+    console.log('元のレスポンス内容（先頭500文字）:', content.substring(0, 500));
+    console.log('抽出パターンのマッチ状況:', {
+      htmlMatch: !!htmlMatch,
+      wordMarkdownMatch: !!wordMarkdownMatch,
+      generalMarkdownMatch: !!generalMarkdownMatch,
+      htmlFallback: !!htmlFallback,
+      markdownFallback: !!markdownFallback
     });
     
     return {
       html: extractedHtml,
-      rtf: extractedRtf,
+      wordMarkdown: extractedWordMarkdown,
       markdown: extractedMarkdown,
     };
   }
@@ -680,9 +744,32 @@ ${transcription}`;
     let summaryLines: string[] = [];
     
     for (const line of lines) {
-      // タイトル抽出
+      // タイトル抽出（技術説明を除外）
       if (line.startsWith('# ')) {
-        title = line.replace('# ', '').trim();
+        const extractedTitle = line.replace('# ', '').trim();
+        // 技術説明タイトルを除外し、会議名を自動生成
+        if (extractedTitle && 
+            !extractedTitle.includes('Microsoft Word') &&
+            !extractedTitle.includes('Markdown文書') &&
+            !extractedTitle.includes('Markdown') &&
+            !extractedTitle.includes('Word対応') &&
+            !extractedTitle.includes('整形された') &&
+            !extractedTitle.includes('HTML文書') &&
+            !extractedTitle.includes('文書') &&
+            !extractedTitle.includes('対応') &&
+            extractedTitle !== '議事録' &&
+            extractedTitle.length > 3) {
+          title = extractedTitle;
+        } else {
+          // 会議名を自動生成
+          const today = new Date();
+          const dateStr = today.toLocaleDateString('ja-JP', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          });
+          title = `${dateStr} 会議議事録`;
+        }
         continue;
       }
       
@@ -774,31 +861,29 @@ ${transcription}`;
   }
 
   /**
-   * AI APIで概要を生成（改行等読みやすさを担保）
+   * 議事録内容から50文字以内の要約を生成
    */
   private async generateOverviewSummary(content: string): Promise<string> {
     try {
-      const systemPrompt = `あなたは議事録の概要作成専門家です。
-以下の要件に従って、読みやすい概要を作成してください：
+      const systemPrompt = `あなたは議事録の要約作成専門家です。
+以下の要件に従って、簡潔な要約を作成してください：
 
 【要件】
 - 50文字以内で簡潔にまとめる
-- 改行を適切に使用し、読みやすくする
-- 最も重要なポイントを1-2つに絞る
+- 会議の最も重要なポイントを1-2つに絞る
 - 専門用語は避け、分かりやすい表現を使用
 - 決して勝手に文章を補完しない
 - 与えられた内容に忠実に要約する
 
 【出力形式】
 - 単一の段落として出力
-- 必要に応じて改行を含める
 - 句読点を適切に配置`;
 
       const response = await this.api.post('/chat/completions', {
         model: 'gpt-4o-mini', // 軽量モデルで十分
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `以下の議事録内容から概要を作成してください：\n\n${content.substring(0, 2000)}` }
+          { role: 'user', content: `以下の議事録内容から50文字以内の要約を作成してください：\n\n${content.substring(0, 2000)}` }
         ],
         temperature: 0.2,
         max_tokens: 100,
@@ -816,134 +901,136 @@ ${transcription}`;
   }
 
   /**
-   * Markdown形式の議事録をWord文書（docx）に変換
+   * MarkdownからDOCXバイナリデータを生成
    */
-  private async generateWordDocument(markdownContent: string): Promise<string> {
+  private async generateDOCXFromMarkdown(markdownContent: string): Promise<Uint8Array> {
     try {
-      // Markdownを解析してWord文書を作成
-      const doc = new Document({
-        sections: [
-          {
-            children: this.parseMarkdownToDocx(markdownContent),
-          },
-        ],
+      console.log('DOCX生成開始:', {
+        contentLength: markdownContent.length,
+        contentPreview: markdownContent.substring(0, 300)
+      });
+      
+      // MD2DOCXサービスを使用してDOCXを生成
+      const docxBuffer = await md2docxService.generateHighQualityDOCX(markdownContent);
+      
+      console.log('DOCX生成完了:', {
+        docxLength: docxBuffer.length,
+        docxType: typeof docxBuffer
+      });
+      
+      return docxBuffer;
+    } catch (error) {
+      console.error('DOCX生成に失敗しました:', error);
+      throw new Error(`DOCX生成エラー: ${error.message}`);
+    }
+  }
+
+  /**
+   * 文字エンコーディングを適切に処理する
+   */
+  private processTextEncoding(text: string): string {
+    if (!text || typeof text !== 'string') {
+      return '';
+    }
+
+    try {
+      // デバッグ情報: 元のテキストの最初の200文字を表示
+      console.log('文字エンコーディング処理開始:', {
+        textLength: text.length,
+        textPreview: text.substring(0, 200),
+        textType: typeof text,
       });
 
-      // docxファイルを生成（ブラウザ環境でBase64として出力）
-      const buffer = await Packer.toBase64String(doc);
-      return buffer;
+      // 文字化け検出パターン
+      const corruptionPatterns = [
+        /[\u0080-\u00BF]/g,  // 不正なUTF-8バイト
+                 /[\uFFFD]/g,         // 置換文字
+         /�/g,                // 文字化け記号
+      ];
+
+      // 文字化けが検出された場合の処理
+      let hasCorruption = false;
+      const detectedPatterns: string[] = [];
+      
+      for (let i = 0; i < corruptionPatterns.length; i++) {
+        const pattern = corruptionPatterns[i];
+        const matches = text.match(pattern);
+        if (matches) {
+          hasCorruption = true;
+          detectedPatterns.push(`パターン${i + 1}: ${matches.length}個の文字化け文字`);
+        }
+      }
+
+      if (hasCorruption) {
+        console.warn('文字化けを検出しました:', {
+          detectedPatterns,
+          textLength: text.length,
+          textPreview: text.substring(0, 200),
+        });
+        
+        // encoding-japaneseを使用して文字エンコーディングを修復
+        try {
+          // 文字列をUint8Arrayに変換
+          const textBytes = new TextEncoder().encode(text);
+          
+          // 日本語エンコーディングを自動判定
+          const detected = Encoding.detect(textBytes);
+          console.log('エンコーディング自動判定結果:', {
+            detected,
+            bytesLength: textBytes.length,
+            originalLength: text.length,
+          });
+          
+          // 適切なエンコーディングで文字列を変換
+          if (detected && detected !== 'UTF8') {
+            const convertedBytes = Encoding.convert(textBytes, {
+              to: 'UTF8',
+              from: detected,
+            });
+            const fixedText = new TextDecoder('utf-8').decode(new Uint8Array(convertedBytes));
+            console.log('エンコーディング修復完了:', {
+              originalLength: text.length,
+              fixedLength: fixedText.length,
+              fixedPreview: fixedText.substring(0, 200),
+            });
+            return fixedText;
+          }
+        } catch (encodingError) {
+          console.warn('encoding-japaneseによる修復に失敗:', encodingError);
+        }
+
+        // フォールバック: 文字化け文字を除去
+        let cleanedText = text;
+        let removedCount = 0;
+        
+        for (const pattern of corruptionPatterns) {
+          const beforeLength = cleanedText.length;
+          cleanedText = cleanedText.replace(pattern, '');
+          removedCount += beforeLength - cleanedText.length;
+        }
+        
+        // 連続する空白を正規化
+        cleanedText = cleanedText.replace(/\s+/g, ' ').trim();
+        
+        console.log('文字化け除去処理完了:', {
+          originalLength: text.length,
+          cleanedLength: cleanedText.length,
+          removedCount,
+          cleanedPreview: cleanedText.substring(0, 200),
+        });
+        
+        return cleanedText;
+      }
+
+      // 文字化けが検出されなかった場合
+      console.log('文字化けは検出されませんでした。テキストは正常です。');
+      return text;
     } catch (error) {
-      console.error('Word文書の生成に失敗しました:', error);
-      throw new Error('Word文書の生成に失敗しました');
+      console.error('文字エンコーディング処理エラー:', error);
+      return text; // エラーが発生した場合は元のテキストを返す
     }
   }
 
-  /**
-   * Markdownテキストを解析してdocxのParagraphに変換
-   */
-  private parseMarkdownToDocx(markdown: string): Paragraph[] {
-    const paragraphs: Paragraph[] = [];
-    const lines = markdown.split('\n');
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      
-      if (!line) {
-        // 空行はスペースとして追加
-        paragraphs.push(new Paragraph({
-          children: [new TextRun(' ')],
-        }));
-        continue;
-      }
-      
-      // 見出し（# ## ###）
-      if (line.startsWith('# ')) {
-        paragraphs.push(new Paragraph({
-          heading: HeadingLevel.HEADING_1,
-          children: [new TextRun({
-            text: line.substring(2),
-            bold: true,
-          })],
-        }));
-      } else if (line.startsWith('## ')) {
-        paragraphs.push(new Paragraph({
-          heading: HeadingLevel.HEADING_2,
-          children: [new TextRun({
-            text: line.substring(3),
-            bold: true,
-          })],
-        }));
-      } else if (line.startsWith('### ')) {
-        paragraphs.push(new Paragraph({
-          heading: HeadingLevel.HEADING_3,
-          children: [new TextRun({
-            text: line.substring(4),
-            bold: true,
-          })],
-        }));
-      } else if (line.startsWith('- ') || line.startsWith('* ')) {
-        // リスト項目
-        paragraphs.push(new Paragraph({
-          children: [new TextRun({
-            text: `• ${line.substring(2)}`,
-          })],
-          indent: {
-            left: 400,
-          },
-        }));
-      } else if (line.match(/^\d+\. /)) {
-        // 番号付きリスト
-        paragraphs.push(new Paragraph({
-          children: [new TextRun({
-            text: line,
-          })],
-          indent: {
-            left: 400,
-          },
-        }));
-      } else {
-        // 通常のテキスト
-        const textRuns = this.parseInlineMarkdown(line);
-        paragraphs.push(new Paragraph({
-          children: textRuns,
-        }));
-      }
-    }
-    
-    return paragraphs;
-  }
-
-
-
-  /**
-   * インラインMarkdown（太字、斜体）を解析
-   */
-  private parseInlineMarkdown(text: string): TextRun[] {
-    const runs: TextRun[] = [];
-    let currentText = text;
-    
-    // 太字 **text**
-    const boldRegex = /\*\*(.*?)\*\*/g;
-    const parts = currentText.split(boldRegex);
-    
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if (i % 2 === 1) {
-        // 太字部分
-        runs.push(new TextRun({
-          text: part,
-          bold: true,
-        }));
-      } else if (part) {
-        // 通常テキスト
-        runs.push(new TextRun({
-          text: part,
-        }));
-      }
-    }
-    
-    return runs.length > 0 ? runs : [new TextRun(text)];
-  }
 
   async generateMinutes(
     transcription: string,
@@ -1111,22 +1198,22 @@ ${transcription}`;
       formats.html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>議事録</title></head><body><pre>${formats.markdown}</pre></body></html>`;
     }
     
-    // RTF生成の問題を特定するためのログ
-    if (!formats.rtf) {
-      console.warn('RTF抽出に失敗しました。API応答を確認してください:', {
+    // Word用Markdown生成の問題を特定するためのログ
+    if (!formats.wordMarkdown) {
+      console.warn('Word用Markdown抽出に失敗しました。API応答を確認してください:', {
         contentLength: content.length,
         contentPreview: content.substring(0, 500),
-        hasRtfKeyword: content.includes('rtf'),
-        hasRtfCodeBlock: content.includes('```rtf'),
+        hasMarkdownKeyword: content.includes('markdown'),
+        hasMarkdownCodeBlock: content.includes('```markdown'),
       });
     }
     
     // 全て空の場合は元のcontentを使用
-    if (!formats.markdown && !formats.html && !formats.rtf) {
+    if (!formats.markdown && !formats.html && !formats.wordMarkdown) {
       console.warn('全フォーマットの抽出に失敗、元コンテンツを使用');
       formats.markdown = content;
       formats.html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>議事録</title></head><body><pre>${content}</pre></body></html>`;
-      // RTFは空のままにして、API側の問題を明確にする
+      formats.wordMarkdown = content;
     }
 
     // 構造化データを抽出（Markdownから）
@@ -1141,14 +1228,50 @@ ${transcription}`;
       aiGeneratedSummary = structuredData.summary;
     }
 
-    // Word文書（docx）を生成
-    let wordDocumentBase64: string | null = null;
+    // DOCX文書を生成（Word対応）
+    let docxBuffer: Uint8Array;
     try {
-      if (formats.markdown) {
-        wordDocumentBase64 = await this.generateWordDocument(formats.markdown);
+      console.log('DOCX生成開始:', {
+        hasWordMarkdown: !!formats.wordMarkdown,
+        wordMarkdownLength: formats.wordMarkdown?.length || 0,
+        wordMarkdownPreview: formats.wordMarkdown?.substring(0, 200) || 'なし'
+      });
+      
+      let markdownForDOCX: string;
+      
+      if (formats.wordMarkdown && formats.wordMarkdown.trim()) {
+        console.log('Word用Markdown形式が抽出されました');
+        markdownForDOCX = formats.wordMarkdown;
+        console.log('抽出されたWord用Markdownの最初の500文字:', formats.wordMarkdown.substring(0, 500));
+      } else {
+        console.warn('Word用Markdown形式が見つからないため、フォールバック処理を実行');
+        // フォールバック: 通常のMarkdownまたはHTMLから変換
+        markdownForDOCX = formats.markdown || this.convertHTMLToMarkdown(content);
+        console.log('フォールバックMarkdown生成完了:', {
+          markdownLength: markdownForDOCX.length,
+          markdownPreview: markdownForDOCX.substring(0, 200)
+        });
       }
+      
+      // MarkdownからDOCXを生成
+      docxBuffer = await this.generateDOCXFromMarkdown(markdownForDOCX);
+      console.log('DOCX生成完了:', {
+        docxSize: docxBuffer.length
+      });
+      
     } catch (error) {
-      console.warn('Word文書の生成に失敗しました:', error);
+      console.error('DOCX文書の生成に失敗しました:', error);
+      // 最低限のDOCXファイルを生成（フォールバック）
+      try {
+        const fallbackMarkdown = content.substring(0, 1000);
+        docxBuffer = await this.generateDOCXFromMarkdown(fallbackMarkdown);
+      } catch (fallbackError) {
+        console.error('フォールバックDOCX生成も失敗:', fallbackError);
+        // 空のUint8Arrayを作成（エラー処理）
+        const errorText = 'DOCX生成に失敗しました';
+        const encoder = new TextEncoder();
+        docxBuffer = encoder.encode(errorText);
+      }
     }
 
     // 参加者データを構築（発言時間なし）
@@ -1193,9 +1316,9 @@ ${transcription}`;
       },
       {
         format: 'word' as OutputFormat,
-        content: wordDocumentBase64 || 'Word文書の生成に失敗しました',
+        content: btoa(String.fromCharCode(...docxBuffer)),
         generatedAt: now,
-        size: wordDocumentBase64 ? wordDocumentBase64.length : 0,
+        size: docxBuffer.length,
       }
     ];
 
