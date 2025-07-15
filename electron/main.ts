@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell, ipcMain, Menu, MenuItem, MenuItemConstructor
 import path from 'path';
 import fs from 'fs';
 import { setupFileHandler } from './fileHandler';
+import { NativeAudioProcessor } from './nativeAudioProcessor';
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -278,5 +279,93 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+});
+
+// ネイティブFFmpegのIPC通信ハンドラー
+let nativeAudioProcessor: NativeAudioProcessor | null = null;
+
+// 音声処理の初期化
+ipcMain.handle('audio-processor-initialize', async (event, progressCallback) => {
+  if (!nativeAudioProcessor) {
+    nativeAudioProcessor = new NativeAudioProcessor();
+  }
+  
+  try {
+    await nativeAudioProcessor.initialize((progress) => {
+      event.sender.send('audio-processor-progress', progress);
+    });
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : '初期化エラー' };
+  }
+});
+
+// 大容量音声ファイルの処理
+ipcMain.handle('audio-processor-process-file', async (event, filePath, segmentDuration = 600) => {
+  if (!nativeAudioProcessor) {
+    return { success: false, error: '音声処理システムが初期化されていません' };
+  }
+  
+  try {
+    const segments = await nativeAudioProcessor.processLargeAudioFile(
+      filePath,
+      segmentDuration,
+      (progress) => {
+        event.sender.send('audio-processor-progress', progress);
+      }
+    );
+    
+    // Blobデータを転送可能な形式に変換
+    const serializedSegments = await Promise.all(
+      segments.map(async (segment) => ({
+        name: segment.name,
+        duration: segment.duration,
+        startTime: segment.startTime,
+        endTime: segment.endTime,
+        data: Buffer.from(await segment.blob.arrayBuffer()).toString('base64'),
+        type: segment.blob.type,
+      }))
+    );
+    
+    return { success: true, segments: serializedSegments };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : '処理エラー' };
+  }
+});
+
+// 音声の長さを取得
+ipcMain.handle('audio-processor-get-duration', async (event, blobData, blobType) => {
+  if (!nativeAudioProcessor) {
+    return { success: false, error: '音声処理システムが初期化されていません' };
+  }
+  
+  try {
+    const blob = new Blob([Buffer.from(blobData, 'base64')], { type: blobType });
+    const duration = await nativeAudioProcessor.getAudioDurationFromBlob(blob);
+    return { success: true, duration };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : '長さ取得エラー' };
+  }
+});
+
+// クリーンアップ
+ipcMain.handle('audio-processor-cleanup', async () => {
+  if (nativeAudioProcessor) {
+    try {
+      await nativeAudioProcessor.cleanup();
+      nativeAudioProcessor = null;
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'クリーンアップエラー' };
+    }
+  }
+  return { success: true };
+});
+
+// アプリ終了時のクリーンアップ
+app.on('before-quit', async () => {
+  if (nativeAudioProcessor) {
+    await nativeAudioProcessor.cleanup();
   }
 }); 

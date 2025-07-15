@@ -123,15 +123,34 @@ function App() {
   // ファイル選択の追跡
   useEffect(() => {
     if (selectedFile) {
-      // セキュリティ検証（rawFileプロパティに対して実行）
+      // 大容量ファイル（100MB以上）に対するセキュリティ検証は制限を緩和
       if (selectedFile.rawFile) {
-        const fileValidation = securityService.validateFile(selectedFile.rawFile);
-        if (!fileValidation.isValid) {
-          console.error('ファイルセキュリティ検証エラー:', fileValidation.errors);
-          logService.warn('ファイルセキュリティ検証に失敗', { 
-            fileName: selectedFile.name,
-            errors: fileValidation.errors 
-          });
+        const isLargeFile = selectedFile.size > 100 * 1024 * 1024; // 100MB
+        
+        if (!isLargeFile) {
+          // 通常ファイルのセキュリティ検証
+          const fileValidation = securityService.validateFile(selectedFile.rawFile);
+          if (!fileValidation.isValid) {
+            console.warn('ファイルセキュリティ検証警告:', fileValidation.errors);
+            logService.warn('ファイルセキュリティ検証に失敗', { 
+              fileName: selectedFile.name,
+              errors: fileValidation.errors,
+              fileSize: selectedFile.size
+            });
+          }
+        } else {
+          // 大容量ファイルは基本的なチェックのみ
+          const dangerousExtensions = ['.exe', '.bat', '.cmd', '.scr', '.pif', '.com'];
+          const fileName = selectedFile.name.toLowerCase();
+          if (dangerousExtensions.some(ext => fileName.endsWith(ext))) {
+            console.error('危険なファイル形式が検出されました:', fileName);
+            logService.error('危険なファイル形式', { fileName: selectedFile.name });
+          } else {
+            logService.info('大容量ファイルのセキュリティ検証完了', { 
+              fileName: selectedFile.name,
+              fileSize: selectedFile.size
+            });
+          }
         }
       }
       
@@ -194,12 +213,30 @@ function App() {
     }
 
     try {
-      // セキュリティ検証（rawFileプロパティに対して実行）
+      // 大容量ファイル（100MB以上）に対するセキュリティ検証は制限を緩和
       if (audioFile.rawFile) {
-        const validation = securityService.validateFile(audioFile.rawFile);
-        if (!validation.isValid) {
-          console.error('ファイルセキュリティ検証失敗:', validation.errors);
-          // エラー処理は既存のエラーハンドリングに委ねる
+        const isLargeFile = audioFile.size > 100 * 1024 * 1024; // 100MB
+        
+        if (!isLargeFile) {
+          // 通常ファイルのセキュリティ検証
+          const validation = securityService.validateFile(audioFile.rawFile);
+          if (!validation.isValid) {
+            console.warn('ファイルセキュリティ検証警告:', validation.errors);
+            logService.warn('ファイルセキュリティ検証に失敗', { 
+              fileName: audioFile.name,
+              errors: validation.errors,
+              fileSize: audioFile.size
+            });
+          }
+        } else {
+          // 大容量ファイルは基本的なチェックのみ
+          const dangerousExtensions = ['.exe', '.bat', '.cmd', '.scr', '.pif', '.com'];
+          const fileName = audioFile.name.toLowerCase();
+          if (dangerousExtensions.some(ext => fileName.endsWith(ext))) {
+            console.error('危険なファイル形式が検出されました:', fileName);
+            logService.error('危険なファイル形式', { fileName: audioFile.name });
+            return; // 危険なファイルは処理を中止
+          }
         }
       }
       

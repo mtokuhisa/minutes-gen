@@ -6,7 +6,7 @@ import axios, { AxiosInstance, AxiosProxyConfig } from 'axios';
 import { getValidatedAPIConfig, getCorporateStatus, DEFAULT_API_CONFIG } from '../config/api';
 import { AuthService } from './authService';
 import { AudioFile, ProcessingOptions, MinutesData, ProcessingProgress, GeneratedOutput, OutputFormat } from '../types';
-import { audioProcessor } from './audioProcessor';
+import { getAudioProcessor } from './audioProcessorFactory';
 import { initializePromptStore, getActivePrompt, getAllPrompts } from './promptStore';
 import { ErrorHandler, APIError } from './errorHandler';
 import { md2docxService } from './md2docxService';
@@ -348,7 +348,8 @@ export class OpenAIService {
     }
 
     try {
-      // ffmpeg.wasmで音声ファイルを適切なセグメントに分割（1倍速固定）
+      // 適切な音声プロセッサーで音声ファイルを分割（1倍速固定）
+      const audioProcessor = getAudioProcessor();
       const segments = await audioProcessor.processLargeAudioFile(file, 600, onProgress);
       
       const transcriptSegments: string[] = [];
@@ -361,7 +362,7 @@ export class OpenAIService {
         onProgress?.({
           stage: 'transcribing',
           percentage: 70 + Math.round((i / segments.length) * 25),
-          currentTask: `音声セグメント ${i + 1}/${segments.length} をAIが文字に変換中...`,
+          currentTask: `🤖 AI が${i + 1}つ目の音声を文字にしています...`,
           estimatedTimeRemaining: 0,
           logs: [{
             id: Date.now().toString() + '_seg_' + i,

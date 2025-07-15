@@ -262,195 +262,238 @@ export const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
   return (
     <Box sx={{ width: '100%' }}>
       {/* メイン進捗表示 */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          {/* ヘッダー */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Box sx={{ color: currentStage.color, mr: 2 }}>
-                {currentStage.icon}
+      <Card sx={{ mb: 3, borderLeft: `4px solid ${statusColors.processing}`, position: 'relative', overflow: 'hidden' }}>
+        {/* 動的背景アニメーション */}
+        <Box 
+          sx={{ 
+            position: 'absolute', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            background: `linear-gradient(90deg, transparent 0%, ${statusColors.processing}20 ${progress.percentage}%, transparent ${progress.percentage + 10}%)`,
+            transition: 'all 0.5s ease'
+          }}
+        />
+        
+        <CardContent sx={{ position: 'relative' }}>
+          {/* タイトルと進捗率 */}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+              <Box sx={{ mr: 1, display: 'flex', alignItems: 'center' }}>
+                <CircularProgress size={20} sx={{ mr: 1, color: statusColors.processing }} />
+                議事録を作成中
               </Box>
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  {currentStage.label}
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  {progress.currentTask}
-                </Typography>
-              </Box>
-            </Box>
-            <Box sx={{ textAlign: 'right' }}>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: currentStage.color }}>
-                {progress.percentage}%
-              </Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                {isCompleted ? '完了' : hasError ? 'エラー' : '処理中'}
-              </Typography>
-            </Box>
-          </Box>
-
-
-
-          {/* 進捗バー */}
-          <Box sx={{ mb: 3 }}>
-            <LinearProgress
-              variant="determinate"
-              value={progress.percentage}
-              sx={{
-                height: 12,
-                borderRadius: 6,
-                backgroundColor: 'grey.200',
-                '& .MuiLinearProgress-bar': {
-                  backgroundColor: currentStage.color,
-                  borderRadius: 6,
-                  transition: 'width 0.5s ease',
-                },
+            </Typography>
+            <Chip 
+              label={`${progress.percentage}%`}
+              sx={{ 
+                backgroundColor: statusColors.processing, 
+                color: 'white',
+                fontWeight: 600,
+                fontSize: '0.9rem'
               }}
             />
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                開始時刻: {fixedStartTime.toLocaleTimeString()}
-              </Typography>
-              {progress.stage === 'transcribing' && progress.currentTask.includes('ffmpeg.wasm') && (
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  音声ファイルを自動分割処理中...
-              </Typography>
-              )}
-            </Box>
           </Box>
 
-          {/* ファイル情報 */}
-          {selectedFile && (
-            <Box sx={{ p: 2, bgcolor: 'rgba(76, 175, 80, 0.1)', borderRadius: 1, mb: 2 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                📁 処理中のファイル
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                <Chip 
-                  label={`ファイル名: ${selectedFile.name}`}
-                  size="small"
-                  sx={{ bgcolor: 'rgba(76, 175, 80, 0.2)' }}
-                />
-                <Chip 
-                  label={`サイズ: ${(selectedFile.size / 1024 / 1024).toFixed(1)}MB`}
-                  size="small"
-                  sx={{ bgcolor: 'rgba(76, 175, 80, 0.2)' }}
-                />
-                {selectedFile.duration && (
-                  <Chip 
-                    label={`長さ: ${Math.floor(selectedFile.duration / 60)}分${Math.floor(selectedFile.duration % 60)}秒`}
-                    size="small"
-                    sx={{ bgcolor: 'rgba(76, 175, 80, 0.2)' }}
-                  />
-                )}
-                <Chip 
-                  label={`形式: ${selectedFile.type?.split('/')[1]?.toUpperCase() || 'Unknown'}`}
-                  size="small"
-                  sx={{ bgcolor: 'rgba(76, 175, 80, 0.2)' }}
-                />
-              </Box>
-            </Box>
-          )}
+          {/* 現在の作業内容（分かりやすい表示） */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="body1" sx={{ fontWeight: 500, mb: 1 }}>
+              {progress.currentTask}
+            </Typography>
+            <LinearProgress 
+              variant="determinate" 
+              value={progress.percentage} 
+              sx={{ 
+                height: 8, 
+                borderRadius: 4,
+                backgroundColor: 'grey.200',
+                '& .MuiLinearProgress-bar': {
+                  backgroundColor: statusColors.processing,
+                  borderRadius: 4,
+                }
+              }}
+            />
+          </Box>
 
-
-
-          {/* 統計情報 */}
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6}>
-              <Paper sx={{ p: 2, textAlign: 'center', backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
-                  <Schedule sx={{ fontSize: 20, color: 'primary.main', mr: 1 }} />
-                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                    経過時間
-                  </Typography>
-                </Box>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  {formatTime(elapsedTime)}
+          {/* 技術的詳細情報（処理速度欄） */}
+          {(progress.stage === 'transcribing' || progress.stage === 'analyzing') && (
+            <Card sx={{ backgroundColor: 'grey.50', mb: 2 }}>
+              <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1, display: 'block' }}>
+                  処理詳細
                 </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <Paper sx={{ p: 2, textAlign: 'center', backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
-                  <Speed sx={{ fontSize: 20, color: 'primary.main', mr: 1 }} />
-                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                    処理速度
-                  </Typography>
-                </Box>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  {progress.percentage > 0 ? Math.round(progress.percentage / elapsedTime * 100) / 100 : 0}%/s
-                </Typography>
-              </Paper>
-            </Grid>
-
-
-          </Grid>
-
-
-
-          {/* ステージ進捗 */}
-          <Stepper activeStep={currentStageIndex} orientation="horizontal" sx={{ mb: 3 }}>
-            {stages.slice(0, -1).map((stage, index) => {
-              const config = stageConfig[stage as ProcessingStage];
-              const isActive = index === currentStageIndex;
-              const isCompleted = index < currentStageIndex;
-              
-              return (
-                <Step key={stage}>
-                  <StepLabel
-                    StepIconComponent={() => (
-                      <Box
-                        sx={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: '50%',
-                          backgroundColor: isCompleted ? config.color : isActive ? config.color : 'grey.300',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'white',
-                          transition: 'all 0.3s ease',
-                        }}
-                      >
-                        {config.icon}
-                      </Box>
-                    )}
-                  >
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: isCompleted || isActive ? config.color : 'text.secondary',
-                        fontWeight: isActive ? 600 : 400,
-                      }}
-                    >
-                      {config.label}
+                <Grid container spacing={2}>
+                  {/* 処理時間 */}
+                  <Grid item xs={4}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        処理時間
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {formatTime(elapsedTime)}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  
+                  {/* 推定残り時間 */}
+                  <Grid item xs={4}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        推定残り時間
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {progress.estimatedTimeRemaining > 0 ? formatTime(progress.estimatedTimeRemaining) : '計算中...'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  
+                  {/* 処理速度 */}
+                  <Grid item xs={4}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        処理速度
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {progress.processingDetails?.currentFps 
+                          ? `${progress.processingDetails.currentFps.toFixed(1)}fps`
+                          : progress.stage === 'transcribing' ? '文字起こし中' : '解析中'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+                
+                {/* FFmpeg詳細情報（技術者向け） */}
+                {progress.processingDetails && (
+                  <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1, display: 'block' }}>
+                      技術詳細
                     </Typography>
-                  </StepLabel>
-                </Step>
-              );
-            })}
-          </Stepper>
-
-          {/* アクションボタン */}
-          {onCancel && !isCompleted && !hasError && (
-            <Box sx={{ textAlign: 'center', mt: 3 }}>
-              <IconButton
-                onClick={onCancel}
-                sx={{
-                  backgroundColor: 'error.main',
-                  color: 'white',
-                  '&:hover': { backgroundColor: 'error.dark' },
-                }}
-              >
-                <Pause />
-              </IconButton>
-              <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
-                処理を中断
-              </Typography>
-            </Box>
+                    <Grid container spacing={1}>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          フレーム数: {progress.processingDetails.frames.toLocaleString()}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          データ量: {progress.processingDetails.currentKbps.toFixed(0)}kbps
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          出力サイズ: {(progress.processingDetails.targetSize / 1024).toFixed(1)}MB
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          処理時間: {progress.processingDetails.timemark}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
           )}
         </CardContent>
       </Card>
+
+      {/* ファイル情報 */}
+      {selectedFile && (
+        <Box sx={{ p: 2, bgcolor: 'rgba(76, 175, 80, 0.1)', borderRadius: 1, mb: 2 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+            📁 処理中のファイル
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            <Chip 
+              label={`ファイル名: ${selectedFile.name}`}
+              size="small"
+              sx={{ bgcolor: 'rgba(76, 175, 80, 0.2)' }}
+            />
+            <Chip 
+              label={`サイズ: ${(selectedFile.size / 1024 / 1024).toFixed(1)}MB`}
+              size="small"
+              sx={{ bgcolor: 'rgba(76, 175, 80, 0.2)' }}
+            />
+            {selectedFile.duration && (
+              <Chip 
+                label={`長さ: ${Math.floor(selectedFile.duration / 60)}分${Math.floor(selectedFile.duration % 60)}秒`}
+                size="small"
+                sx={{ bgcolor: 'rgba(76, 175, 80, 0.2)' }}
+              />
+            )}
+            <Chip 
+              label={`形式: ${selectedFile.type?.split('/')[1]?.toUpperCase() || 'Unknown'}`}
+              size="small"
+              sx={{ bgcolor: 'rgba(76, 175, 80, 0.2)' }}
+            />
+          </Box>
+        </Box>
+      )}
+
+
+      {/* ステージ進捗 */}
+      <Stepper activeStep={currentStageIndex} orientation="horizontal" sx={{ mb: 3 }}>
+        {stages.slice(0, -1).map((stage, index) => {
+          const config = stageConfig[stage as ProcessingStage];
+          const isActive = index === currentStageIndex;
+          const isCompleted = index < currentStageIndex;
+          
+          return (
+            <Step key={stage}>
+              <StepLabel
+                StepIconComponent={() => (
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: '50%',
+                      backgroundColor: isCompleted ? config.color : isActive ? config.color : 'grey.300',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      transition: 'all 0.3s ease',
+                    }}
+                  >
+                    {config.icon}
+                  </Box>
+                )}
+              >
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: isCompleted || isActive ? config.color : 'text.secondary',
+                    fontWeight: isActive ? 600 : 400,
+                  }}
+                >
+                  {config.label}
+                </Typography>
+              </StepLabel>
+            </Step>
+          );
+        })}
+      </Stepper>
+
+      {/* アクションボタン */}
+      {onCancel && !isCompleted && !hasError && (
+        <Box sx={{ textAlign: 'center', mt: 3 }}>
+          <IconButton
+            onClick={onCancel}
+            sx={{
+              backgroundColor: 'error.main',
+              color: 'white',
+              '&:hover': { backgroundColor: 'error.dark' },
+            }}
+          >
+            <Pause />
+          </IconButton>
+          <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
+            処理を中断
+          </Typography>
+        </Box>
+      )}
 
       {/* 結果表示 */}
       {isCompleted && (

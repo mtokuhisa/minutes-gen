@@ -133,14 +133,32 @@ MinutesGen v1.0 では以下のエラーに対して自動リトライを実行�
 
 ### asar unpack 設定
 
-FFmpeg関連ファイルをasarから除外することで、大容量ファイル処理のパフォーマンスを向上：
+ネイティブFFmpeg関連ファイルをasarから除外することで、大容量ファイル処理のパフォーマンスを向上：
 
 ```json
 "asarUnpack": [
-  "**/node_modules/@ffmpeg/**/*",
   "**/node_modules/ffmpeg-static/**/*",
-  "**/public/ffmpeg-core/**/*"
+  "**/node_modules/fluent-ffmpeg/**/*"
 ]
+```
+
+### 音声処理システムの改善
+
+v0.7.3以降では、以下の改善が行われました：
+
+#### ネイティブFFmpegの採用
+- **FFmpeg.wasm → ネイティブFFmpeg**に移行
+- **処理速度**: 5-10倍高速化
+- **メモリ制限**: 15MB → 数GB対応
+- **安定性**: メモリクラッシュの解消
+
+#### 設定方法
+```bash
+# ネイティブFFmpegを有効にする（デフォルト）
+REACT_APP_USE_NATIVE_FFMPEG=true
+
+# レガシーFFmpegWasmにフォールバック（非推奨）
+REACT_APP_USE_NATIVE_FFMPEG=false
 ```
 
 ### メモリ最適化

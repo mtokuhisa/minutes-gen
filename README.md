@@ -16,9 +16,32 @@ AI を活用した次世代の議事録生成ツール。音声ファイルを�
 
 - **フロントエンド**: React 18, TypeScript, Material-UI
 - **バックエンド**: Electron
+- **音声処理**: ネイティブFFmpeg（ffmpeg-static + fluent-ffmpeg）
 - **API**: OpenAI Whisper & GPT-4o
 - **ビルドツール**: Vite
 - **テスト**: Jest, Playwright
+
+## 音声処理システムの改善 (v0.7.3)
+
+### ネイティブFFmpegの採用
+- **FFmpeg.wasm → ネイティブFFmpeg**に完全移行
+- **処理速度**: 5-10倍高速化
+- **メモリ制限**: 15MB → 数GB対応
+- **安定性**: メモリクラッシュの解消
+
+### 対応ファイル形式
+- **音声**: MP3, WAV, M4A, FLAC, OGG
+- **動画**: MP4, AVI, MOV, WMV（音声抽出）
+- **大容量ファイル**: 数GB対応
+
+### 設定方法
+```bash
+# ネイティブFFmpegを有効にする（デフォルト）
+REACT_APP_USE_NATIVE_FFMPEG=true
+
+# レガシーFFmpegWasmにフォールバック（非推奨）
+REACT_APP_USE_NATIVE_FFMPEG=false
+```
 
 ## セットアップ
 

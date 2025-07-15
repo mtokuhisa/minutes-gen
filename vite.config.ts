@@ -61,7 +61,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
+    exclude: ['ffmpeg-static'],
     include: [
       'react',
       'react-dom',

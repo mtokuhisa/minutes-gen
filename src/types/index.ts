@@ -29,6 +29,49 @@ export interface AudioMetadata {
   documentText?: string; // 文書ファイルの場合のテキスト内容
 }
 
+// 音声処理セグメント関連の型定義
+export interface AudioSegment {
+  blob: Blob;
+  name: string;
+  duration: number;
+  startTime: number;
+  endTime: number;
+}
+
+export interface SegmentBoundary {
+  start: number;
+  end: number;
+  overlapStart?: number;
+  overlapEnd?: number;
+}
+
+// 音声処理インターフェース
+export interface AudioProcessorInterface {
+  /**
+   * 音声処理システムを初期化
+   */
+  initialize(onProgress?: (progress: ProcessingProgress) => void): Promise<void>;
+  
+  /**
+   * 大容量音声ファイルを適切なセグメントに分割
+   */
+  processLargeAudioFile(
+    file: AudioFile,
+    segmentDurationSeconds?: number,
+    onProgress?: (progress: ProcessingProgress) => void
+  ): Promise<AudioSegment[]>;
+  
+  /**
+   * リソースのクリーンアップ
+   */
+  cleanup(): Promise<void>;
+  
+  /**
+   * 音声長さを取得
+   */
+  getAudioDurationFromBlob(blob: Blob): Promise<number>;
+}
+
 // 処理オプション関連の型定義
 export interface ProcessingOptions {
   language: SupportedLanguage;
@@ -50,6 +93,13 @@ export interface ProcessingProgress {
   estimatedTimeRemaining: number; // 秒
   logs: ProcessingLog[];
   startedAt: Date;
+  processingDetails?: {
+    frames: number;
+    currentFps: number;
+    currentKbps: number;
+    targetSize: number;
+    timemark: string;
+  };
 }
 
 export type ProcessingStage = 
