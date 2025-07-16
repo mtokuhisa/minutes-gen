@@ -39,19 +39,26 @@ export class FileProcessor {
   }
 
   /**
-   * PDFファイルの処理
+   * PDFファイルの処理（OpenAI Files APIを使用）
    */
-  async processPDF(file: File): Promise<FileProcessingResult> {
+  async processPDF(file: File, onProgress?: (progress: { stage: string; percentage: number; message: string }) => void): Promise<FileProcessingResult> {
     try {
       const apiKey = await this.ensureAuthenticated();
       
+      console.log('PDF処理開始:', {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type
+      });
+
+      // Step 1: PDFファイルをOpenAI Files APIにアップロード
+      onProgress?.({ stage: 'upload', percentage: 10, message: 'PDFファイルをアップロード中...' });
+      
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('model', 'gpt-4o');
-      formData.append('purpose', 'document-extraction');
+      formData.append('purpose', 'assistants');
 
-      // PDFからテキスト抽出（OpenAI APIを使用）
-      const response = await fetch('https://api.openai.com/v1/files', {
+      const uploadResponse = await fetch('https://api.openai.com/v1/files', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -59,26 +66,97 @@ export class FileProcessor {
         body: formData,
       });
 
-      if (!response.ok) {
-        this.handleAuthError(response);
-        throw new Error(`PDF処理エラー: ${response.statusText}`);
+      if (!uploadResponse.ok) {
+        this.handleAuthError(uploadResponse);
+        const errorData = await uploadResponse.json();
+        throw new Error(`PDFファイルアップロードエラー: ${errorData.error?.message || uploadResponse.statusText}`);
       }
 
-      const result = await response.json();
+      const uploadResult = await uploadResponse.json();
+      const fileId = uploadResult.id;
       
+      console.log('PDFファイルアップロード成功:', { fileId });
+      onProgress?.({ stage: 'upload', percentage: 30, message: 'PDFファイルのアップロード完了' });
+
+      // Step 2: Chat Completions APIを使用してPDFからテキストを抽出
+      onProgress?.({ stage: 'extract', percentage: 40, message: 'PDFからテキストを抽出中...' });
+      const extractResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: 'このPDFファイルの内容を全て読み取り、テキストとして抽出してください。表やリストがある場合は、その構造も保持してください。画像内のテキストも含めて抽出してください。',
+                },
+                {
+                  type: 'file',
+                  file: {
+                    file_id: fileId,
+                  },
+                },
+              ],
+            },
+          ],
+          max_tokens: 16000,
+          temperature: 0.1,
+        }),
+      });
+
+      if (!extractResponse.ok) {
+        this.handleAuthError(extractResponse);
+        const errorData = await extractResponse.json();
+        throw new Error(`PDFテキスト抽出エラー: ${errorData.error?.message || extractResponse.statusText}`);
+      }
+
+      const extractResult = await extractResponse.json();
+      const extractedText = extractResult.choices[0]?.message?.content || '';
+
+      console.log('PDFテキスト抽出成功:', {
+        fileName: file.name,
+        extractedTextLength: extractedText.length,
+        textPreview: extractedText.substring(0, 200)
+      });
+
+      onProgress?.({ stage: 'extract', percentage: 80, message: 'テキスト抽出完了' });
+
+      // Step 3: アップロードしたファイルを削除（オプション）
+      onProgress?.({ stage: 'cleanup', percentage: 90, message: '一時ファイルを削除中...' });
+      try {
+        await fetch(`https://api.openai.com/v1/files/${fileId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+          },
+        });
+        console.log('一時ファイル削除完了:', fileId);
+      } catch (deleteError) {
+        console.warn('一時ファイル削除に失敗:', deleteError);
+      }
+
+      onProgress?.({ stage: 'complete', percentage: 100, message: 'PDF処理完了' });
+
       return {
-        content: result.content || 'PDFの内容を抽出できませんでした。',
+        content: extractedText || 'PDFの内容を抽出できませんでした。',
         type: 'pdf',
         metadata: {
           fileName: file.name,
           fileSize: file.size,
           processedAt: new Date(),
+          fileId: fileId,
         },
       };
     } catch (error) {
       console.error('PDF処理エラー:', error);
       return {
-        content: `PDFファイル「${file.name}」の処理中にエラーが発生しました。`,
+        content: `PDFファイル「${file.name}」の処理中にエラーが発生しました: ${error.message}`,
         type: 'pdf',
         metadata: {
           fileName: file.name,

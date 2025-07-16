@@ -39,6 +39,7 @@ import {
 import { AudioFile, FileValidation } from '../types';
 import mammoth from 'mammoth';
 import Encoding from 'encoding-japanese';
+import { FileProcessor } from '../services/fileProcessor';
 
 // ===========================================
 // MinutesGen v1.0 - ファイルアップロード
@@ -72,6 +73,8 @@ export const FileUpload: React.FC<FileUploadProps> = React.memo(({
   const [audioRetryCount, setAudioRetryCount] = useState(0);
   const [audioError, setAudioError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileProcessor = new FileProcessor();
+  const [pdfProcessingProgress, setPdfProcessingProgress] = useState<{ stage: string; percentage: number; message: string } | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // クリーンアップ処理: blobURLのメモリリークを防止
@@ -338,9 +341,44 @@ export const FileUpload: React.FC<FileUploadProps> = React.memo(({
         const text = await file.text();
         return text || '※Markdownファイルの内容を読み取れませんでした。';
       } else if (extension === 'pdf') {
-        // PDFファイルの場合（基本的なテキスト抽出のみ）
-        const text = await file.text();
-        return text || '※PDFファイルからのテキスト抽出に失敗しました。テキスト形式での再提出をお勧めします。';
+        // PDFファイルの場合（FileProcessorサービスを使用）
+        try {
+          console.log('FileProcessorを使用したPDF処理開始:', file.name);
+          setPdfProcessingProgress({ stage: 'init', percentage: 5, message: 'PDF処理を開始しています...' });
+          
+          const result = await fileProcessor.processPDF(file, (progress) => {
+            setPdfProcessingProgress(progress);
+            console.log('PDF処理進捗:', progress);
+          });
+          
+          if (result.content && result.content.trim()) {
+            console.log('PDF処理成功:', { fileName: file.name, contentLength: result.content.length });
+            setPdfProcessingProgress(null); // 進捗表示をクリア
+            return result.content;
+          } else {
+            console.warn('PDF処理結果が空:', file.name);
+            setPdfProcessingProgress(null);
+            return '※PDFファイルからテキストを抽出できませんでした。内容があるPDFファイルをご確認ください。';
+          }
+        } catch (error) {
+          console.error('FileProcessorでのPDF処理エラー:', error);
+          setPdfProcessingProgress(null); // エラー時は進捗表示をクリア
+          
+          // フォールバック処理：基本的なテキスト抽出を試行
+          try {
+            console.log('フォールバック処理: 基本的なテキスト抽出を試行');
+            const text = await file.text();
+            if (text && text.trim()) {
+              console.log('フォールバック処理成功');
+              return text;
+            } else {
+              return '※PDFファイルからのテキスト抽出に失敗しました。画像ベースのPDFの場合は、テキスト形式での再提出をお勧めします。';
+            }
+          } catch (fallbackError) {
+            console.error('フォールバック処理も失敗:', fallbackError);
+            return `※PDFファイル「${file.name}」の処理中にエラーが発生しました。ファイルが破損していないか確認してください。`;
+          }
+        }
       } else if (extension === 'docx' || extension === 'doc') {
         // DOCXファイルの場合
         const arrayBuffer = await file.arrayBuffer();
@@ -1215,6 +1253,36 @@ export const FileUpload: React.FC<FileUploadProps> = React.memo(({
                 },
               }}
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* PDF処理専用進捗 */}
+      {pdfProcessingProgress && (
+        <Card sx={{ mb: 3, bgcolor: 'info.50', border: '1px solid', borderColor: 'info.200' }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <PictureAsPdf sx={{ mr: 1, color: 'info.main' }} />
+              <Typography variant="subtitle1" color="info.main">
+                {pdfProcessingProgress.message}
+              </Typography>
+            </Box>
+            <LinearProgress
+              variant="determinate"
+              value={pdfProcessingProgress.percentage}
+              sx={{
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: 'info.100',
+                '& .MuiLinearProgress-bar': {
+                  backgroundColor: 'info.main',
+                  borderRadius: 3,
+                },
+              }}
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              PDF処理: {pdfProcessingProgress.stage} ({pdfProcessingProgress.percentage}%)
+            </Typography>
           </CardContent>
         </Card>
       )}

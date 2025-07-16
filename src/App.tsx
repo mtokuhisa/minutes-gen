@@ -36,7 +36,7 @@ function App() {
     setProcessingOptions,
     processAudio,
     clearError,
-    clearResults,
+    resetApp,
   } = useAppState();
 
   // サービスの初期化
@@ -408,8 +408,7 @@ function App() {
               safeMonitoringService.trackAction('results-back');
             }}
             onClearAndRestart={() => {
-              clearResults();
-              handleStepChange(1);
+              resetApp();
               safeMonitoringService.trackAction('results-reset');
             }}
           />
@@ -431,7 +430,13 @@ function App() {
             backgroundColor: 'background.default',
           }}
         >
-          <AppHeader />
+          <AppHeader 
+            onRestart={() => {
+              resetApp();
+              clearError();
+              safeMonitoringService.trackAction('header-restart');
+            }}
+          />
           
           <Box
             component="main"

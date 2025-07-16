@@ -74,14 +74,15 @@ export class AudioProcessorService implements AudioProcessorInterface {
       throw new Error('音声ファイルが見つかりません');
     }
 
-    // 大容量ファイルの処理は制限
-    if (file.rawFile.size > 25 * 1024 * 1024) { // 25MB制限
+    // 大容量ファイルの処理制限を緩和 - 100MBまで対応
+    const maxSize = 100 * 1024 * 1024; // 100MB制限
+    if (file.rawFile.size > maxSize) {
       const errorMessage = `
 大容量音声ファイル（${Math.round(file.rawFile.size / 1024 / 1024)}MB）の処理には、
 ネイティブFFmpegの使用を強く推奨します。
 
 現在の制限:
-- レガシー処理: 最大25MB
+- レガシー処理: 最大100MB
 - ネイティブFFmpeg: 制限なし（数GB対応）
 
 解決方法:
@@ -93,16 +94,29 @@ export class AudioProcessorService implements AudioProcessorInterface {
       throw new Error(errorMessage);
     }
 
+    // メモリ効率を向上させるため、大きなファイルは警告を表示
+    if (file.rawFile.size > 50 * 1024 * 1024) { // 50MB以上で警告
+      console.warn('⚠️ 大容量ファイル処理中:', {
+        fileSize: Math.round(file.rawFile.size / 1024 / 1024) + 'MB',
+        recommendation: 'ネイティブFFmpegの使用を推奨'
+      });
+      
+      // ガベージコレクションを強制実行（可能な場合）
+      if (typeof window !== 'undefined' && window.gc) {
+        window.gc();
+      }
+    }
+
     onProgress?.({
       stage: 'transcribing',
       percentage: 30,
-      currentTask: '音声ファイルを単一セグメントとして処理中...',
+      currentTask: `音声ファイル（${Math.round(file.rawFile.size / 1024 / 1024)}MB）を処理中...`,
       estimatedTimeRemaining: 0,
       logs: [{ 
         id: Date.now().toString(), 
         timestamp: new Date(), 
         level: 'info', 
-        message: '音声ファイルを単一セグメントとして処理します。' 
+        message: 'レガシー処理でファイルを単一セグメントとして処理します。' 
       }],
       startedAt: new Date(),
     });
@@ -120,14 +134,14 @@ export class AudioProcessorService implements AudioProcessorInterface {
 
     onProgress?.({
       stage: 'transcribing',
-      percentage: 95,
-      currentTask: '音声セグメントの準備完了',
+      percentage: 50,
+      currentTask: '音声ファイルの処理完了',
       estimatedTimeRemaining: 0,
       logs: [{ 
         id: Date.now().toString(), 
         timestamp: new Date(), 
-        level: 'success', 
-        message: '1個の音声セグメントの準備が完了しました。' 
+        level: 'info', 
+        message: `音声セグメント準備完了 (${Math.round(file.rawFile.size / 1024 / 1024)}MB)` 
       }],
       startedAt: new Date(),
     });

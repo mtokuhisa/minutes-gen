@@ -126,7 +126,7 @@ const stageConfig = {
     color: statusColors.processing,
     detailedMessages: [
       'OpenAI APIに接続中...',
-      'Whisperモデルで音声認識中...',
+      'gpt-4o-transcribeで音声認識中...',
       '音声を文字に変換中...',
       '文字起こし結果を確認中...'
     ]

@@ -362,7 +362,7 @@ export class OpenAIService {
         onProgress?.({
           stage: 'transcribing',
           percentage: 70 + Math.round((i / segments.length) * 25),
-          currentTask: `🤖 AI が${i + 1}つ目の音声を文字にしています...`,
+          currentTask: `🤖 AI が音声を文字にしています...${i + 1}/${segments.length}`,
           estimatedTimeRemaining: 0,
           logs: [{
             id: Date.now().toString() + '_seg_' + i,
@@ -373,8 +373,31 @@ export class OpenAIService {
           startedAt: new Date(),
         });
 
-        // セグメントファイルを作成
-        const segmentFile = new File([segment.blob], segment.name, { type: file.rawFile.type });
+        // セグメントファイルを作成（メモリ効率化）
+        let segmentBlob = segment.blob;
+        
+        // ファイルパスベースの場合は、処理時に読み込む（メモリ効率化）
+        if ((segment as any)._filePath && typeof window !== 'undefined' && window.electronAPI) {
+          try {
+            const result = await window.electronAPI.audioProcessor.readSegmentFile((segment as any)._filePath);
+            if (result.success && result.data) {
+              // base64データをUint8Arrayに変換（レンダラープロセスでBufferは使用できない）
+              const binaryString = atob(result.data);
+              const bytes = new Uint8Array(binaryString.length);
+              for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+              }
+              segmentBlob = new Blob([bytes], { type: 'audio/wav' });
+            } else {
+              throw new Error(result.error || 'ファイル読み込みエラー');
+            }
+          } catch (error) {
+            console.error('セグメントファイル読み込みエラー:', error);
+            throw new Error(`セグメント${i + 1}の読み込みに失敗しました`);
+          }
+        }
+        
+        const segmentFile = new File([segmentBlob], segment.name, { type: file.rawFile.type });
         
         const formData = new FormData();
         formData.append('file', segmentFile, segmentFile.name);

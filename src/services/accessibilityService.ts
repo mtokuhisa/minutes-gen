@@ -198,23 +198,36 @@ export class AccessibilityService {
     style.textContent = `
       .skip-links {
         position: absolute;
-        top: -40px;
-        left: 6px;
+        top: -1000px;
+        left: -1000px;
         z-index: 1000;
+        opacity: 0;
+        pointer-events: none;
       }
       .skip-link {
         position: absolute;
-        top: -40px;
-        left: 6px;
+        top: -1000px;
+        left: -1000px;
         padding: 8px;
         background: #000;
         color: #fff;
         text-decoration: none;
         border-radius: 4px;
-        transition: top 0.3s;
+        transition: all 0.3s;
+        opacity: 0;
+        pointer-events: none;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
       }
       .skip-link:focus {
         top: 6px;
+        left: 6px;
+        opacity: 1;
+        pointer-events: auto;
+        width: auto;
+        height: auto;
+        overflow: visible;
       }
     `;
     

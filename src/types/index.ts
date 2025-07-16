@@ -38,6 +38,20 @@ export interface AudioSegment {
   endTime: number;
 }
 
+// ファイルパスベースの音声セグメント（メモリ効率化）
+export interface AudioSegmentPath {
+  filePath: string;
+  name: string;
+  duration: number;
+  startTime: number;
+  endTime: number;
+}
+
+// ファイルパス情報を持つ音声セグメント（内部使用）
+export interface AudioSegmentWithPath extends AudioSegment {
+  _filePath?: string;
+}
+
 export interface SegmentBoundary {
   start: number;
   end: number;

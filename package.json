@@ -5,10 +5,12 @@
   "main": "dist/main.js",
   "homepage": "./",
   "scripts": {
-    "start": "electron .",
+    "start": "electron --max-old-space-size=1024 --expose-gc .",
     "dev": "concurrently \"npm run dev:react\" \"npm run dev:electron\"",
+    "dev:safe": "node start-app.js",
+    "dev:force": "SHELL=/bin/zsh /bin/zsh -c 'npm run dev:react & npm run dev:electron'",
     "dev:react": "vite --port 3000 --strictPort",
-    "dev:electron": "wait-on http://localhost:3000 && electron .",
+    "dev:electron": "wait-on http://localhost:3000 && node --max-old-space-size=1024 ./node_modules/.bin/electron --max-old-space-size=1024 --expose-gc .",
     "build": "npm run build:react && npm run build:electron",
     "build:react": "vite build",
     "build:electron": "tsc -p tsconfig.main.json",
@@ -20,7 +22,7 @@
     "dist:signed": "npm run build && electron-builder --win --publish=never",
     "dist:mac": "npm run build && electron-builder --mac --arm64",
     "dist:mac-universal": "npm run build && electron-builder --mac --universal",
-    "create-cert": "powershell -ExecutionPolicy Bypass -File scripts/create-certificate.ps1",
+    "create-cert": "node scripts/create-certificate.js",
     "test:exe-mode": "npm run build && electron scripts/test-exe-mode.js",
     "test:static-paths": "node scripts/test-static-paths.js",
     "test:native-ffmpeg": "REACT_APP_USE_NATIVE_FFMPEG=true npm run dev",
@@ -91,6 +93,7 @@
     "electron-store": "^8.1.0",
     "encoding-japanese": "^2.2.0",
     "ffmpeg-static": "^5.2.0",
+    "ffprobe-static": "^3.1.0",
     "file-saver": "^2.0.5",
     "fluent-ffmpeg": "^2.1.3",
     "framer-motion": "^10.16.0",
@@ -121,8 +124,10 @@
     ],
     "asarUnpack": [
       "**/node_modules/ffmpeg-static/**/*",
+      "**/node_modules/ffprobe-static/**/*",
       "**/node_modules/fluent-ffmpeg/**/*"
     ],
+    "afterPack": "scripts/fix-ffmpeg-permissions.js",
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "assets/gijiro.png",
@@ -160,7 +165,9 @@
       ],
       "requestedExecutionLevel": "asInvoker",
       "artifactName": "MinutesGen_議事録アプリ_v${version}.${ext}",
-      "publisherName": "DENTSU PROMOTION EXE INC."
+      "publisherName": "DENTSU PROMOTION EXE INC.",
+      "certificateFile": "MinutesGen-CodeSigning.p12",
+      "certificatePassword": "MinutesGen2025!DPE"
     },
     "linux": {
       "target": "AppImage"
