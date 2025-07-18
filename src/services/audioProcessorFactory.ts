@@ -4,10 +4,10 @@ import { dynamicMemoryService, FileProcessingRequest } from './dynamicMemoryServ
 import { memoryEstimationService } from './memoryEstimationService';
 import { workerManager } from './workerManager';
 
-// 環境変数でFFmpegの種類を制御
+// 環境変数でFFmpegの種類を制御 - ビルド時に確実に設定
 const USE_NATIVE_FFMPEG = process.env.REACT_APP_USE_NATIVE_FFMPEG !== 'false';
 
-// Electron環境の判定 - より厳密な判定に変更
+// Electron環境の判定 - より確実な判定に変更
 const isElectronEnvironment = (): boolean => {
   console.log('🔍 AudioProcessorFactory: Electron環境判定を開始');
   
@@ -29,14 +29,13 @@ const isElectronEnvironment = (): boolean => {
     electronAPI: hasElectronAPI ? 'available' : 'unavailable'
   });
   
-  // より厳密な判定
-  const isElectron = hasAudioProcessor && hasElectronFlag;
+  // より柔軟な判定 - audioProcessorがあれば確実にElectron環境
+  const isElectron = hasAudioProcessor || (hasElectronFlag && hasElectronUserAgent);
   
   console.log('🔍 最終判定:', {
     isElectron,
-    reason: hasAudioProcessor && hasElectronFlag ? 'audioProcessor & isElectron flag both true' : 
-            hasAudioProcessor ? 'audioProcessor available but isElectron flag false' : 
-            hasElectronFlag ? 'isElectron flag true but audioProcessor unavailable' : 
+    reason: hasAudioProcessor ? 'audioProcessor available' : 
+            hasElectronFlag && hasElectronUserAgent ? 'isElectron flag & user agent' : 
             hasElectronUserAgent ? 'Electron user agent only' : 'none'
   });
   
@@ -103,6 +102,9 @@ class DynamicMemoryAudioProcessor implements AudioProcessorInterface {
       try {
         const nativeProcessor = new NativeAudioProcessorService();
         
+        // 初期化を後回しにして、processLargeAudioFile内で実行
+        console.log('🔍 NativeAudioProcessorServiceを作成完了');
+        
         const audioFile = {
           name: file.name,
           rawFile: file.rawFile || file,
@@ -116,9 +118,11 @@ class DynamicMemoryAudioProcessor implements AudioProcessorInterface {
           onProgress
         );
         
+        console.log('✅ NativeAudioProcessorServiceでの処理成功');
         return result;
       } catch (nativeError) {
         console.error('❌ NativeAudioProcessorServiceでの処理失敗:', nativeError);
+        console.log('⚠️ DynamicMemoryServiceフォールバックを続行');
         // フォールバック処理を続行
       }
     }
@@ -171,7 +175,7 @@ export class AudioProcessorFactory {
   /**
    * 環境に応じたAudioProcessorインスタンスを作成
    */
-  static createAudioProcessor(): AudioProcessorInterface {
+  static async createAudioProcessor(): Promise<AudioProcessorInterface> {
     console.log('🎵 AudioProcessor作成開始（動的メモリ管理対応）');
     
     try {
@@ -180,17 +184,20 @@ export class AudioProcessorFactory {
       console.log('🎵 AudioProcessor作成:', {
         isElectron,
         USE_NATIVE_FFMPEG,
-        selectedType: isElectron && USE_NATIVE_FFMPEG ? 'native' : 'wasm'
+        selectedType: isElectron ? 'native' : 'wasm'
       });
       
       let baseProcessor: AudioProcessorInterface;
       
       // Electron環境でネイティブFFmpegを使用する場合
-      if (isElectron && USE_NATIVE_FFMPEG) {
+      if (isElectron) {
         try {
           console.log('✅ NativeAudioProcessorServiceを作成中...');
           baseProcessor = new NativeAudioProcessorService();
           console.log('✅ NativeAudioProcessorServiceの作成に成功');
+          
+          // 初期化は実際の処理時に行う（コンパイルエラー回避）
+          console.log('🔍 NativeAudioProcessorServiceの初期化は処理時に実行');
         } catch (error) {
           console.error('❌ NativeAudioProcessorServiceの作成に失敗:', error);
           console.log('⚠️ レガシーAudioProcessorServiceにフォールバック');
@@ -198,7 +205,7 @@ export class AudioProcessorFactory {
         }
       } else {
         // フォールバック: 旧来のFFmpegWasmを使用
-        console.log('⚠️ レガシーAudioProcessorServiceを使用');
+        console.log('⚠️ レガシーAudioProcessorServiceを使用（非Electron環境）');
         baseProcessor = createLegacyAudioProcessor();
       }
       
@@ -323,11 +330,11 @@ let audioProcessorInstance: AudioProcessorInterface | null = null;
 /**
  * AudioProcessorのシングルトンインスタンスを取得
  */
-export function getAudioProcessor(): AudioProcessorInterface {
+export async function getAudioProcessor(): Promise<AudioProcessorInterface> {
   try {
     if (!audioProcessorInstance) {
       console.log('🔄 新しいAudioProcessorインスタンスを作成');
-      audioProcessorInstance = AudioProcessorFactory.createAudioProcessor();
+      audioProcessorInstance = await AudioProcessorFactory.createAudioProcessor();
     } else {
       console.log('♻️ 既存のAudioProcessorインスタンスを使用');
     }
@@ -338,7 +345,7 @@ export function getAudioProcessor(): AudioProcessorInterface {
     // エラーが発生した場合、インスタンスをリセットして再試行
     audioProcessorInstance = null;
     console.log('🔄 エラー後の再試行: AudioProcessorインスタンスを再作成');
-    audioProcessorInstance = AudioProcessorFactory.createAudioProcessor();
+    audioProcessorInstance = await AudioProcessorFactory.createAudioProcessor();
     return audioProcessorInstance;
   }
 }

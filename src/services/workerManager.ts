@@ -1,5 +1,5 @@
 // ===========================================
-// MinutesGen v1.0 - Worker管理システム
+// MinutesGen v0.7.5 - Worker管理システム
 // ===========================================
 
 // Node.js固有のモジュールはElectron環境でのみ使用
@@ -39,12 +39,30 @@ const isElectronEnvironment = (): boolean => {
 
 // Electron環境でのみNode.jsモジュールを動的インポート
 if (isElectronEnvironment()) {
-  try {
-    spawn = (window as any).require('child_process').spawn;
-    ChildProcess = (window as any).require('child_process').ChildProcess;
-    EventEmitter = (window as any).require('events').EventEmitter;
-  } catch (error) {
-    console.warn('Node.jsモジュールの読み込みに失敗:', error);
+  const safeRequire = (mod: string) => {
+    try {
+      if (typeof (window as any).require === 'function') {
+        return (window as any).require(mod);
+      }
+      // preload から expose されている場合
+      if ((window as any).electronAPI?.nodeRequire) {
+        return (window as any).electronAPI.nodeRequire(mod);
+      }
+    } catch (err) {
+      console.warn(`safeRequire(${mod}) 失敗:`, err);
+    }
+    return undefined;
+  };
+
+  const childProcess = safeRequire('child_process');
+  const events = safeRequire('events');
+
+  if (childProcess) {
+    spawn = childProcess.spawn;
+    ChildProcess = childProcess.ChildProcess;
+  }
+  if (events) {
+    EventEmitter = events.EventEmitter;
   }
 }
 

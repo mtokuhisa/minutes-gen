@@ -7,6 +7,37 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { app } from 'electron';
 
+// Windows版FFmpegパス修正のためのヘルパー
+function getCorrectFFmpegPath(): string {
+  if (!ffmpegPath) {
+    throw new Error('FFmpegパスが設定されていません');
+  }
+  
+  // Windows版で拡張子を確認
+  if (process.platform === 'win32') {
+    // .exeが付いていない場合は追加
+    if (!ffmpegPath.endsWith('.exe')) {
+      const exePath = ffmpegPath + '.exe';
+      
+      // 開発環境では実際のファイルの存在を確認
+      if (!app.isPackaged) {
+        try {
+          fs.accessSync(exePath, fs.constants.F_OK);
+          console.log('✅ Windows開発環境でFFmpeg.exeバイナリを確認:', exePath);
+          return exePath;
+        } catch (error) {
+          console.log('⚠️ Windows開発環境でFFmpeg.exeが見つからない、元のパスを使用:', ffmpegPath);
+          return ffmpegPath;
+        }
+      }
+      
+      return exePath;
+    }
+  }
+  
+  return ffmpegPath;
+}
+
 // 型定義
 interface AudioSegment {
   blob: Blob;
@@ -96,17 +127,18 @@ export class NativeAudioProcessor {
       await fs.promises.mkdir(this.tempDir, { recursive: true });
       
       // FFmpegパスの設定（パッケージ化対応）
-      let resolvedFFmpegPath = ffmpegPath;
+      const correctedFFmpegPath = getCorrectFFmpegPath();
+      let resolvedFFmpegPath = correctedFFmpegPath;
       let resolvedFFprobePath = ffprobePath;
       
-      if (ffmpegPath) {
-        console.log('🔧 初期FFmpegパス:', ffmpegPath);
+      if (correctedFFmpegPath) {
+        console.log('🔧 初期FFmpegパス:', correctedFFmpegPath);
         console.log('🔧 初期FFprobeパス:', ffprobePath);
         
         // パッケージ化されたアプリケーションでのパス解決
         if (app.isPackaged) {
           // app.asar.unpacked内のパスを確認
-          const unpackedFFmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked');
+          const unpackedFFmpegPath = correctedFFmpegPath.replace('app.asar', 'app.asar.unpacked');
           const unpackedFFprobePath = ffprobePath.replace('app.asar', 'app.asar.unpacked');
           
           console.log('📦 パッケージ化されたアプリ - unpackedFFmpegパス確認:', unpackedFFmpegPath);
@@ -121,16 +153,51 @@ export class NativeAudioProcessor {
             
             // 代替パスを試行
             const appPath = app.getAppPath();
-            const alternativeFFmpegPath = path.join(appPath, '..', 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', process.platform === 'darwin' ? 'ffmpeg' : 'ffmpeg.exe');
-            console.log('🔄 代替FFmpegパスを試行:', alternativeFFmpegPath);
+            let alternativeFFmpegPaths: string[] = [];
             
-            try {
-              await fs.promises.access(alternativeFFmpegPath, fs.constants.F_OK);
-              resolvedFFmpegPath = alternativeFFmpegPath;
-              console.log('✅ 代替パスでFFmpegバイナリを発見');
-            } catch (altError) {
-              console.error('❌ 代替パスでもFFmpegバイナリが見つかりません:', altError);
-              throw new Error(`FFmpegバイナリが見つかりません。パス: ${ffmpegPath}, unpacked: ${unpackedFFmpegPath}, alternative: ${alternativeFFmpegPath}`);
+            if (process.platform === 'win32') {
+              // Windows版の代替パスをより包括的に検索
+              const basePath = path.join(appPath, '..', 'app.asar.unpacked', 'node_modules', 'ffmpeg-static');
+              alternativeFFmpegPaths = [
+                path.join(basePath, 'ffmpeg'),
+                path.join(basePath, 'ffmpeg.exe'),
+                path.join(basePath, 'win32', 'ffmpeg'),
+                path.join(basePath, 'win32', 'ffmpeg.exe'),
+                path.join(basePath, 'bin', 'win32', 'ffmpeg'),
+                path.join(basePath, 'bin', 'win32', 'ffmpeg.exe'),
+                path.join(basePath, 'bin', 'win32', 'x64', 'ffmpeg.exe'),
+                path.join(basePath, 'bin', 'win32', 'ia32', 'ffmpeg.exe'),
+                path.join(basePath, 'win32-x64', 'ffmpeg.exe'),
+                path.join(basePath, 'win32-ia32', 'ffmpeg.exe'),
+                // resources フォルダからも探す
+                path.join(app.getAppPath(), '..', 'resources', 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', 'ffmpeg'),
+                path.join(app.getAppPath(), '..', 'resources', 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', 'ffmpeg.exe'),
+              ];
+            } else {
+              alternativeFFmpegPaths = [
+                path.join(appPath, '..', 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', 'ffmpeg'),
+                path.join(appPath, '..', 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', 'darwin', 'ffmpeg'),
+                path.join(appPath, '..', 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', 'bin', 'darwin', 'ffmpeg'),
+              ];
+            }
+            
+            let ffmpegFound = false;
+            for (const altPath of alternativeFFmpegPaths) {
+              console.log('🔄 代替FFmpegパスを試行:', altPath);
+              try {
+                await fs.promises.access(altPath, fs.constants.F_OK);
+                resolvedFFmpegPath = altPath;
+                console.log('✅ 代替パスでFFmpegバイナリを発見');
+                ffmpegFound = true;
+                break;
+              } catch (altError) {
+                console.log('❌ 代替パスでFFmpegバイナリが見つかりません:', altPath);
+              }
+            }
+            
+            if (!ffmpegFound) {
+              console.error('❌ 全ての代替パスでFFmpegバイナリが見つかりません');
+              throw new Error(`FFmpegバイナリが見つかりません。パス: ${correctedFFmpegPath}, unpacked: ${unpackedFFmpegPath}, alternatives: ${alternativeFFmpegPaths.join(', ')}`);
             }
           }
           
@@ -182,12 +249,12 @@ export class NativeAudioProcessor {
         } else {
           // 開発環境での確認
           try {
-            await fs.promises.access(ffmpegPath, fs.constants.F_OK);
+            await fs.promises.access(correctedFFmpegPath, fs.constants.F_OK);
             await fs.promises.access(ffprobePath, fs.constants.F_OK);
             console.log('✅ 開発環境でFFmpeg/FFprobeバイナリを確認');
           } catch (error) {
             console.error('❌ 開発環境でFFmpeg/FFprobeバイナリが見つかりません:', error);
-            throw new Error(`FFmpeg/FFprobeバイナリが見つかりません: ffmpeg=${ffmpegPath}, ffprobe=${ffprobePath}`);
+            throw new Error(`FFmpeg/FFprobeバイナリが見つかりません: ffmpeg=${correctedFFmpegPath}, ffprobe=${ffprobePath}`);
           }
         }
         

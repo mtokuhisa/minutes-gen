@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MinutesGen v0.7.3 - 技術仕様・更新履歴</title>
+    <title>MinutesGen v0.7.6 - 技術仕様・更新履歴</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <style>
@@ -462,9 +462,9 @@
     <!-- ヘッダー -->
     <header class="header">
         <div class="header-content">
-            <h1>MinutesGen v0.7.3</h1>
+            <h1>MinutesGen v0.7.6</h1>
             <p class="subtitle">技術仕様・更新履歴</p>
-            <div class="version-badge">Version 0.7.3 公開版</div>
+            <div class="version-badge">Version 0.7.6 公開版</div>
         </div>
     </header>
 
@@ -527,9 +527,9 @@
                             音声認識システム
                         </h4>
                         <ul class="feature-list">
-                            <li>API統合: OpenAI GPT-4 Transcribe</li>
-                            <li>対応形式: MP3, WAV, M4A, FLAC,DOCX,TXT,MD</li>
-                            <li>最大ファイルサイズ: 1000MB</li>
+                            <li>API統合: OpenAI gpt-4o-transcribe</li>
+                            <li>対応形式: MP3, WAV, M4A, FLAC, MP4, MOV, AVI</li>
+                            <li>最大ファイルサイズ: 3GB</li>
                             <li>処理時間: 平均 30秒/分</li>
                             <li>精度: 日本語 95%以上</li>
                         </ul>
@@ -545,6 +545,7 @@
                             <li>出力形式: HTML, DOCX, TXT</li>
                             <li>構造化: 自動見出し生成</li>
                             <li>要約・アクションアイテム抽出</li>
+                            <li>大容量テキスト: 100万トークンまで対応</li>
                         </ul>
                     </div>
                     <div class="info-card">
@@ -592,7 +593,7 @@
                             <li>Electron 28.0.0</li>
                             <li>Node.js v18.17.0</li>
                             <li>OpenAI API v1</li>
-                            <li>FFmpeg WebCodecs</li>
+                            <li>FFmpeg (ネイティブ統合)</li>
                             <li>ローカルファイルシステム</li>
                         </ul>
                     </div>
@@ -607,6 +608,7 @@
                             <li>一時ファイル自動削除</li>
                             <li>ローカルデータ保護</li>
                             <li>セキュア通信</li>
+                            <li>PDF処理の自動クリーンアップ</li>
                         </ul>
                     </div>
                 </div>
@@ -628,8 +630,8 @@
                         <div class="stat-label">議事録生成/5000文字</div>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-number">150MB</span>
-                        <div class="stat-label">平均メモリ使用量</div>
+                        <span class="stat-number">100万</span>
+                        <div class="stat-label">最大処理トークン数</div>
                     </div>
                     <div class="stat-item">
                         <span class="stat-number">2.5秒</span>
@@ -643,10 +645,11 @@
                             ファイル処理
                         </h4>
                         <ul class="feature-list">
-                            <li>チャンク処理: 15MBずつ分割</li>
+                            <li>セグメント処理: 10分（600秒）単位分割</li>
                             <li>並列処理: 最大3並列</li>
                             <li>エラー処理: 自動リトライ（最大3回）</li>
                             <li>メモリ効率的な処理</li>
+                            <li>動的メモリ管理</li>
                         </ul>
                     </div>
                     <div class="info-card">
@@ -677,7 +680,8 @@
                             技術的制限
                         </h4>
                         <ul class="feature-list">
-                            <li>最大ファイルサイズ: 25MB</li>
+                            <li>最大ファイルサイズ: 3GB</li>
+                            <li>最大テキスト処理: 100万トークン</li>
                             <li>同時処理数: 1ファイル</li>
                             <li>オフライン処理: 未対応</li>
                         </ul>
@@ -705,6 +709,191 @@
                     更新履歴
                 </h2>
                 
+                <!-- Version 0.7.6 -->
+                <div class="version-item">
+                    <div class="version-header">
+                        <div class="version-title">Version 0.7.6 - UI改善・認証修正版</div>
+                        <div class="version-date">2025.1.17</div>
+                    </div>
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">schedule</span>
+                                開発期間
+                            </h4>
+                            <ul class="feature-list">
+                                <li>制作開始: 2025.1.17</li>
+                                <li>公開日: 2025.1.17</li>
+                                <li>開発期間: 1日間</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">login</span>
+                                初回セットアップ修正
+                            </h4>
+                            <ul class="feature-list">
+                                <li>企業パスワード認証後の再表示問題解決</li>
+                                <li>useAppState.tsの認証状態管理修正</li>
+                                <li>認証済み時のステップ設定を適切に変更</li>
+                                <li>初回セットアップは文字通り初回のみ表示</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">cleaning_services</span>
+                                インフォグラフィック改善
+                            </h4>
+                            <ul class="feature-list">
+                                <li>AIが自動生成する技術説明を完全除去</li>
+                                <li>ヘッダー・フッターの不要なテキスト削除</li>
+                                <li>プロンプトに明確な禁止指示を追加</li>
+                                <li>削除処理を強化してクリーンな出力を実現</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">storage</span>
+                                大容量テキスト処理
+                            </h4>
+                            <ul class="feature-list">
+                                <li>100万トークン（約75万文字）まで単一処理対応</li>
+                                <li>88,000トークンファイルの誤分割問題解決</li>
+                                <li>gpt-4.1の1,000,000トークン制限に正式対応</li>
+                                <li>適切な分割判定ロジックを確立</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">desktop_windows</span>
+                                Windows版配布体制
+                            </h4>
+                            <ul class="feature-list">
+                                <li>Windows 64bit版ポータブルアプリ作成</li>
+                                <li>デジタル署名済みでセキュリティ保護</li>
+                                <li>インストール不要で即座に実行可能</li>
+                                <li>約165MBの軽量アプリケーション</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Version 0.7.5 -->
+                <div class="version-item">
+                    <div class="version-header">
+                        <div class="version-title">Version 0.7.5 - PDF処理・メモリ管理強化版</div>
+                        <div class="version-date">2025.1.17</div>
+                    </div>
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">schedule</span>
+                                開発期間
+                            </h4>
+                            <ul class="feature-list">
+                                <li>制作開始: 2025.1.17</li>
+                                <li>公開日: 2025.1.17</li>
+                                <li>開発期間: 1日間</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">picture_as_pdf</span>
+                                PDF処理進捗表示システム
+                            </h4>
+                            <ul class="feature-list">
+                                <li>5段階の詳細進捗報告システム実装</li>
+                                <li>PDF処理専用の青色テーマ進捗カード</li>
+                                <li>リアルタイム進捗コールバック機能</li>
+                                <li>OpenAI Files API処理の可視化</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">api</span>
+                                OpenAI Files API統合
+                            </h4>
+                            <ul class="feature-list">
+                                <li>最新のOpenAI Files API (2025年3月対応)</li>
+                                <li>3段階のAPI処理フロー実装</li>
+                                <li>自動一時ファイル削除機能</li>
+                                <li>堅牢なエラーハンドリング</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">memory</span>
+                                メモリ管理システム
+                            </h4>
+                            <ul class="feature-list">
+                                <li>MemoryEstimationService 追加</li>
+                                <li>DynamicMemoryService 追加</li>
+                                <li>動的メモリ使用量推定</li>
+                                <li>処理モード自動選択</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Version 0.7.4 -->
+                <div class="version-item">
+                    <div class="version-header">
+                        <div class="version-title">Version 0.7.4 - 進捗表示・モデル対応版</div>
+                        <div class="version-date">2025.1.16</div>
+                    </div>
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">schedule</span>
+                                開発期間
+                            </h4>
+                            <ul class="feature-list">
+                                <li>制作開始: 2025.1.16</li>
+                                <li>公開日: 2025.1.16</li>
+                                <li>開発期間: 1日間</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">trending_up</span>
+                                進捗メッセージ改善
+                            </h4>
+                            <ul class="feature-list">
+                                <li>AI転写: "6つ目の音声" → "音声を文字に...6/12"</li>
+                                <li>セグメント: "1/12 生成中" → "分割中...1/12"</li>
+                                <li>総数表示により進捗がより明確に</li>
+                                <li>統一された進捗フォーマット</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">smart_toy</span>
+                                gpt-4o-transcribe対応
+                            </h4>
+                            <ul class="feature-list">
+                                <li>最新音声認識モデルへの対応</li>
+                                <li>より高精度な日本語音声認識</li>
+                                <li>Whisperモデル表記の更新</li>
+                                <li>技術的アップデート</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">video_library</span>
+                                FFmpeg統合による音声処理基盤
+                            </h4>
+                            <ul class="feature-list">
+                                <li>ネイティブFFmpegの採用</li>
+                                <li>ffmpeg-static & ffprobe-static統合</li>
+                                <li>プラットフォーム別バイナリ管理</li>
+                                <li>600秒単位の最適セグメント分割</li>
+                                <li>30+種類の音声・動画フォーマット対応</li>
+                                <li>最大3GB処理能力（従来の120倍）</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Version 0.7.3 -->
                 <div class="version-item">
                     <div class="version-header">
@@ -934,6 +1123,18 @@
                         <div class="info-card">
                             <h4>
                                 <span class="material-icons">update</span>
+                                Version 0.7.7 (予定)
+                            </h4>
+                            <ul class="feature-list">
+                                <li>並行文字起こし処理の実装</li>
+                                <li>辞書機能</li>
+                                <li>OCR機能の拡張</li>
+                                <li>複数ファイル同時処理機能</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                <span class="material-icons">rocket_launch</span>
                                 Version 0.8.0 (予定)
                             </h4>
                             <ul class="feature-list">
@@ -990,7 +1191,7 @@
 
     <!-- フッター -->
     <footer class="footer">
-        <p>&copy; 2025 MinutesGen v1.0. All rights reserved.</p>
+        <p>&copy; 2025 MinutesGen v0.7.6. All rights reserved.</p>
         <p>AI-Powered Meeting Minutes Generator</p>
     </footer>
 

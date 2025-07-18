@@ -37,6 +37,7 @@ function App() {
     processAudio,
     clearError,
     resetApp,
+    setError,
   } = useAppState();
 
   // サービスの初期化
@@ -371,6 +372,7 @@ function App() {
               safeMonitoringService.trackFeatureUsage('file-upload');
             }}
             selectedFile={selectedFile}
+            onError={setError}
           />
         );
       case 2:
@@ -389,29 +391,32 @@ function App() {
         );
       case 3:
         return (
-          <ProcessingProgress
-            progress={progress}
-            selectedFile={selectedFile}
-            onCancel={() => {
-              handleStepChange(2);
-              safeMonitoringService.trackAction('processing-cancelled');
-            }}
-          />
+          <Box>
+            {progress && (
+              <ProcessingProgress
+                progress={progress}
+                selectedFile={selectedFile}
+                onCancel={resetApp}
+              />
+            )}
+          </Box>
         );
       case 4:
         return (
-          <Results
-            results={results}
-            onDownload={handleDownload}
-            onBackToSettings={() => {
-              handleStepChange(2);
-              safeMonitoringService.trackAction('results-back');
-            }}
-            onClearAndRestart={() => {
-              resetApp();
-              safeMonitoringService.trackAction('results-reset');
-            }}
-          />
+          results && (
+            <Results
+              results={results}
+              onDownload={handleDownload}
+              onBackToSettings={() => {
+                handleStepChange(2);
+                safeMonitoringService.trackAction('results-back');
+              }}
+              onClearAndRestart={() => {
+                resetApp();
+                safeMonitoringService.trackAction('results-reset');
+              }}
+            />
+          )
         );
       default:
         return null;

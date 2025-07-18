@@ -13,6 +13,8 @@ console.log('📁 作業ディレクトリ:', process.cwd());
 // PowerShellのバグを回避してzshを使用
 process.env.SHELL = '/bin/zsh';
 process.env.NODE_ENV = 'development';
+// 一時的に無効化（文章ファイル処理の429エラー対策）
+process.env.REACT_APP_USE_NATIVE_FFMPEG = 'false';
 
 // 既存のプロセスを終了
 function killExistingProcesses() {

@@ -1,5 +1,5 @@
 // ===========================================
-// MinutesGen v1.0 - WebCodecs Audio Processor
+// MinutesGen v0.7.5 - WebCodecs Audio Processor
 // ffmpeg.wasm が利用できない環境向けブラウザのみ分割
 // 依存ライブラリなし（AudioContext + 手作り WAV エンコード）
 // ===========================================

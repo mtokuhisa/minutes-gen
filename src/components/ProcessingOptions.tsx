@@ -57,7 +57,6 @@ import {
 } from '@mui/icons-material';
 import {
   ProcessingOptions as ProcessingOptionsType,
-  ProcessingSpeed,
   SupportedLanguage,
 } from '../types';
 import {
@@ -76,7 +75,7 @@ import {
 } from '../services/promptStore';
 
 // ===========================================
-// MinutesGen v1.0 - 処理オプション設定
+// MinutesGen v0.7.5 - 処理オプション設定
 // ===========================================
 
 interface ProcessingOptionsProps {
@@ -89,7 +88,7 @@ interface ProcessingOptionsProps {
 // 速度設定は1倍速固定（精度最優先）
 const speedOptions = [
   {
-    value: 'normal' as ProcessingSpeed,
+    value: 'normal' as string,
     label: '標準 (1倍速)',
     description: '最高精度を実現するため1倍速固定',
     icon: <CloudQueue />,
@@ -360,7 +359,7 @@ export const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
                       backgroundColor: 'rgba(76, 175, 80, 0.03)',
                     },
                   }}
-                  onClick={() => !disabled && handleModelChange(model.value)}
+                  onClick={() => !disabled && handleModelChange(model.value as 'gpt-4.1' | 'o3')}
                 >
                   <CardContent sx={{ textAlign: 'center', py: 3 }}>
                     <Box sx={{ color: model.color, mb: 1 }}>

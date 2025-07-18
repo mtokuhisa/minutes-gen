@@ -1,5 +1,5 @@
 // ===========================================
-// MinutesGen v1.0 - HTML→PNG変換ユーティリティ
+// MinutesGen v0.7.5 - HTML→PNG変換ユーティリティ
 // ===========================================
 
 export interface ImageGenerationOptions {

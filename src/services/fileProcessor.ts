@@ -1,9 +1,15 @@
 // ===========================================
-// MinutesGen v1.0 - ファイル処理サービス（認証統合）
+// MinutesGen v0.7.5 - ファイル処理サービス（認証統合）
 // ===========================================
 
 import { FileProcessingResult } from '../types/infographic';
 import { AuthService } from './authService';
+import { 
+  shouldSplitContent, 
+  generateTokenLimitWarning, 
+  estimateTokenCount,
+  type ModelName 
+} from '../utils/tokenLimits';
 
 export class FileProcessor {
   private authService: AuthService;
@@ -125,6 +131,28 @@ export class FileProcessor {
         textPreview: extractedText.substring(0, 200)
       });
 
+      // 🔥 新規追加: PDFから抽出されたテキストのトークンチェック
+      if (extractedText && extractedText.trim().length > 0) {
+        const model: ModelName = 'gpt-4o' as ModelName; // PDFは現在gpt-4o使用
+        const splitInfo = shouldSplitContent(extractedText, model);
+        
+        console.log('PDF抽出テキスト - トークンチェック結果:', {
+          fileName: file.name,
+          model,
+          estimatedTokens: splitInfo.estimatedTokens,
+          needsSplit: splitInfo.needsSplit,
+          exceedsBy: splitInfo.exceedsBy
+        });
+        
+        if (splitInfo.needsSplit) {
+          const warning = generateTokenLimitWarning(splitInfo, model);
+          console.warn(`⚠️ PDF抽出テキストでトークン制限超過: ${warning}`);
+          
+          // 後続の議事録生成処理で問題が発生する可能性を警告
+          console.warn('⚠️ 後続の議事録生成処理でトークン制限に達する可能性があります');
+        }
+      }
+
       onProgress?.({ stage: 'extract', percentage: 80, message: 'テキスト抽出完了' });
 
       // Step 3: アップロードしたファイルを削除（オプション）
@@ -150,13 +178,12 @@ export class FileProcessor {
           fileName: file.name,
           fileSize: file.size,
           processedAt: new Date(),
-          fileId: fileId,
         },
       };
     } catch (error) {
       console.error('PDF処理エラー:', error);
       return {
-        content: `PDFファイル「${file.name}」の処理中にエラーが発生しました: ${error.message}`,
+        content: `PDFファイル「${file.name}」の処理中にエラーが発生しました: ${error instanceof Error ? error.message : 'Unknown error'}`,
         type: 'pdf',
         metadata: {
           fileName: file.name,

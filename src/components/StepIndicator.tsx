@@ -13,7 +13,7 @@ import {
 } from '@mui/icons-material';
 
 // ===========================================
-// MinutesGen v1.0 - ステップインジケーター（カードスタイル）
+// MinutesGen v0.7.5 - ステップインジケーター（カードスタイル）
 // ===========================================
 
 interface StepIndicatorProps {

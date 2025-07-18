@@ -1,5 +1,5 @@
 // ===========================================
-// MinutesGen v1.0 - Audio Processor Service (FFmpeg.wasm)
+// MinutesGen v0.7.5 - Audio Processor Service (FFmpeg.wasm)
 // 注意: この実装は段階的移行のため保持されています
 // 新しいプロジェクトではNativeAudioProcessorServiceを使用してください
 // ===========================================

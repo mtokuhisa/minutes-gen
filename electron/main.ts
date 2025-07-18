@@ -57,7 +57,7 @@ function createWindow() {
 
   if (process.env.NODE_ENV === 'development') {
     // 開発モードは Vite Dev サーバーに接続
-    win.loadURL('http://localhost:3000/');
+    win.loadURL('http://localhost:9000/');
   } else {
     // プロダクションビルドは index.html を読み込む
     const indexPath = path.join(__dirname, 'index.html');
@@ -244,7 +244,7 @@ const createMenuTemplate = (): MenuItemConstructorOptions[] => {
           click: (item: MenuItem, focusedWindow: BrowserWindow | undefined) => {
             if (focusedWindow) {
               focusedWindow.webContents.executeJavaScript(`
-                alert('MinutesGen v0.7.3\\n議事録自動生成アプリケーション');
+                alert('MinutesGen v0.7.5\\n議事録自動生成アプリケーション');
               `);
             }
           }

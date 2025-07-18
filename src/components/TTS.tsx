@@ -1,5 +1,5 @@
 // ===========================================
-// MinutesGen v1.0 - TTS（音声合成）コンポーネント
+// MinutesGen v0.7.5 - TTS（音声合成）コンポーネント
 // ===========================================
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';

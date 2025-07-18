@@ -22,7 +22,7 @@ import {
 import { saveAPIConfig, getAPIConfig } from '../config/api';
 
 // ===========================================
-// MinutesGen v1.0 - APIキー設定
+// MinutesGen v0.7.5 - APIキー設定
 // ===========================================
 
 interface APIKeySetupProps {
@@ -102,7 +102,7 @@ export const APIKeySetup: React.FC<APIKeySetupProps> = ({ open, onClose, onCompl
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <Alert severity="info">
             <Typography variant="body2">
-              MinutesGen v1.0を使用するには、OpenAI APIキーが必要です。
+                              MinutesGen v0.7.6を使用するには、OpenAI APIキーが必要です。
               <br />
               APIキーは安全に暗号化されてローカルに保存されます。
             </Typography>

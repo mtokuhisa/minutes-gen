@@ -46,7 +46,7 @@ import {
 import { ProcessingProgress as ProcessingProgressType, ProcessingStage } from '../types';
 
 // ===========================================
-// MinutesGen v1.0 - 処理進捗表示（拡張版）
+// MinutesGen v0.7.5 - 処理進捗表示（拡張版）
 // ===========================================
 
 interface ProcessingProgressProps {
@@ -107,6 +107,17 @@ const stageConfig = {
       'サーバーに送信中...'
     ]
   },
+  analyzing: {
+    icon: <Analytics />,
+    label: 'ファイル分析',
+    description: 'ファイルを分析中...',
+    color: statusColors.processing,
+    detailedMessages: [
+      'ファイルの内容を確認中...',
+      'データを解析中...',
+      '処理方法を決定中...'
+    ]
+  },
   preprocessing: {
     icon: <Analytics />,
     label: 'ファイル前処理中',
@@ -117,6 +128,17 @@ const stageConfig = {
       'ファイルの解析中（時間がかかります）',
       '音声を圧縮中',
       'セグメントを準備中'
+    ]
+  },
+  preparing: {
+    icon: <Analytics />,
+    label: '準備中',
+    description: '処理の準備をしています...',
+    color: statusColors.processing,
+    detailedMessages: [
+      '処理環境を準備中...',
+      'リソースを確保中...',
+      '初期化処理中...'
     ]
   },
   transcribing: {
@@ -249,6 +271,9 @@ export const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
       </Box>
     );
   }
+
+  // progress.logs が undefined の場合は空の配列を使用
+  const logs = progress.logs || [];
   
   const currentStage = stageConfig[progress.stage];
   const isCompleted = progress.stage === 'completed';
@@ -578,7 +603,7 @@ export const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
       )}
 
       {/* ログ表示 */}
-      {showLogs && progress.logs.length > 0 && (
+      {showLogs && logs.length > 0 && (
         <Card>
           <CardContent>
             <Box
@@ -591,7 +616,7 @@ export const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
               onClick={() => setLogsExpanded(!logsExpanded)}
             >
               <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                処理ログ ({progress.logs.length})
+                処理ログ ({logs.length})
               </Typography>
               <IconButton size="small">
                 {logsExpanded ? <ExpandLess /> : <ExpandMore />}
@@ -601,7 +626,7 @@ export const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
             <Collapse in={logsExpanded}>
               <Divider sx={{ my: 2 }} />
               <List sx={{ maxHeight: 300, overflow: 'auto' }}>
-                {progress.logs.map((log, index) => (
+                {logs.map((log, index) => (
                   <ListItem key={log.id} sx={{ py: 0.5 }}>
                     <ListItemIcon sx={{ minWidth: 32 }}>
                       {getLogIcon(log.level)}

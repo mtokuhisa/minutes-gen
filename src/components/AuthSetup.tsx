@@ -29,7 +29,7 @@ import {
 import { AuthService, AuthResult } from '../services/authService';
 
 // ===========================================
-// MinutesGen v1.0 - 初回セットアップ画面
+// MinutesGen v0.7.5 - 初回セットアップ画面
 // ===========================================
 
 interface AuthSetupProps {

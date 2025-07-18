@@ -1,5 +1,5 @@
 // ===========================================
-// MinutesGen v1.0 - TypeScript型定義システム
+// MinutesGen v0.7.5 - TypeScript型定義システム
 // ===========================================
 
 // 音声ファイル関連の型定義
@@ -123,7 +123,9 @@ export type ProcessingStage =
   | 'generating'
   | 'formatting'
   | 'completed'
-  | 'error';
+  | 'error'
+  | 'preprocessing'
+  | 'preparing';
 
 export interface ProcessingLog {
   id: string;
@@ -230,6 +232,29 @@ export interface AppError {
   details?: any;
   timestamp: Date;
   recoverable: boolean;
+}
+
+export interface InfographicConfig {
+  layout: 'standard' | 'compact' | 'detailed';
+  colorPalette: 'default' | 'vibrant' | 'corporate';
+  font: 'sans-serif' | 'serif';
+  informationLevel: 'summary' | 'standard' | 'full';
+  branding: {
+    logoUrl?: string;
+    companyName?: string;
+  };
+}
+
+export interface InfographicOutput {
+  htmlContent: string;
+  assets?: {
+    [key: string]: string; // asset key to data URL
+  };
+}
+
+export interface InfographicGenerationProgress {
+  stage: 'analyzing' | 'designing' | 'rendering' | 'completed' | 'error';
+  percentage: number;
 }
 
 // API関連の型定義

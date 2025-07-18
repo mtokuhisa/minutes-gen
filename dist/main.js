@@ -8,6 +8,7 @@ const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const fileHandler_1 = require("./fileHandler");
 const nativeAudioProcessor_1 = require("./nativeAudioProcessor");
+const os_1 = __importDefault(require("os"));
 function createWindow() {
     const win = new electron_1.BrowserWindow({
         width: 1280,
@@ -16,11 +17,48 @@ function createWindow() {
             contextIsolation: true,
             nodeIntegration: false,
             preload: path_1.default.join(__dirname, 'preload.js'),
+            webSecurity: true,
+            allowRunningInsecureContent: false,
         },
+        show: false, // 初期化完了後に表示
     });
+    // アプリケーションが準備完了したら表示
+    win.once('ready-to-show', () => {
+        win.show();
+    });
+    // メモリ使用量の監視とガベージコレクション（一時的に無効化）
+    /*
+    const memoryMonitor = setInterval(() => {
+      const memoryUsage = process.memoryUsage();
+      const heapUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
+      const heapTotalMB = Math.round(memoryUsage.heapTotal / 1024 / 1024);
+      
+      // メモリ使用量が多い場合はログ出力
+      if (heapUsedMB > 500) { // 500MB以上で警告
+        console.warn('⚠️ メモリ使用量が多くなっています:', {
+          heapUsed: heapUsedMB + 'MB',
+          heapTotal: heapTotalMB + 'MB',
+          external: Math.round(memoryUsage.external / 1024 / 1024) + 'MB'
+        });
+      }
+      
+      // 極端にメモリ使用量が多い場合は強制ガベージコレクション
+      if (heapUsedMB > 1000) { // 1GB以上で強制GC
+        if (global.gc) {
+          global.gc();
+          console.log('🗑️ 強制ガベージコレクションを実行しました');
+        }
+      }
+    }, 30000); // 30秒間隔で監視
+  
+    // ウィンドウが閉じられる際にメモリ監視を停止
+    win.on('closed', () => {
+      clearInterval(memoryMonitor);
+    });
+    */
     if (process.env.NODE_ENV === 'development') {
         // 開発モードは Vite Dev サーバーに接続
-        win.loadURL('http://localhost:3000/');
+        win.loadURL('http://localhost:9000/');
     }
     else {
         // プロダクションビルドは index.html を読み込む
@@ -205,7 +243,7 @@ const createMenuTemplate = () => {
                     click: (item, focusedWindow) => {
                         if (focusedWindow) {
                             focusedWindow.webContents.executeJavaScript(`
-                alert('MinutesGen v0.7.3\\n議事録自動生成アプリケーション');
+                alert('MinutesGen v0.7.5\\n議事録自動生成アプリケーション');
               `);
                         }
                     }
@@ -279,41 +317,53 @@ electron_1.app.on('window-all-closed', () => {
 let nativeAudioProcessor = null;
 // 音声処理の初期化
 electron_1.ipcMain.handle('audio-processor-initialize', async (event, progressCallback) => {
-    if (!nativeAudioProcessor) {
-        nativeAudioProcessor = new nativeAudioProcessor_1.NativeAudioProcessor();
-    }
+    console.log('🎵 IPC: audio-processor-initialize');
     try {
+        if (!nativeAudioProcessor) {
+            console.log('🔄 新しいNativeAudioProcessorインスタンスを作成');
+            nativeAudioProcessor = new nativeAudioProcessor_1.NativeAudioProcessor();
+        }
         await nativeAudioProcessor.initialize((progress) => {
+            console.log('📊 進捗通知:', progress.currentTask);
             event.sender.send('audio-processor-progress', progress);
         });
+        console.log('✅ IPC: audio-processor-initialize 成功');
         return { success: true };
     }
     catch (error) {
-        return { success: false, error: error instanceof Error ? error.message : '初期化エラー' };
+        console.error('❌ IPC: audio-processor-initialize エラー:', error);
+        const errorMessage = error instanceof Error ? error.message : '初期化エラー';
+        return { success: false, error: errorMessage };
     }
 });
 // 大容量音声ファイルの処理
 electron_1.ipcMain.handle('audio-processor-process-file', async (event, filePath, segmentDuration = 600) => {
+    console.log('🎵 IPC: audio-processor-process-file', { filePath, segmentDuration });
     if (!nativeAudioProcessor) {
+        console.error('❌ 音声処理システムが初期化されていません');
         return { success: false, error: '音声処理システムが初期化されていません' };
     }
     try {
         const segments = await nativeAudioProcessor.processLargeAudioFile(filePath, segmentDuration, (progress) => {
+            console.log('📊 処理進捗:', progress.currentTask);
             event.sender.send('audio-processor-progress', progress);
         });
-        // Blobデータを転送可能な形式に変換
-        const serializedSegments = await Promise.all(segments.map(async (segment) => ({
+        console.log(`✅ 音声処理完了: ${segments.length}個のセグメント`);
+        // ファイルパスを直接送信（メモリ効率化）
+        const segmentPaths = segments.map(segment => ({
+            filePath: segment.filePath,
             name: segment.name,
             duration: segment.duration,
             startTime: segment.startTime,
             endTime: segment.endTime,
-            data: Buffer.from(await segment.blob.arrayBuffer()).toString('base64'),
-            type: segment.blob.type,
-        })));
-        return { success: true, segments: serializedSegments };
+        }));
+        console.log('✅ IPC: audio-processor-process-file 成功');
+        return { success: true, segments: segmentPaths };
     }
     catch (error) {
-        return { success: false, error: error instanceof Error ? error.message : '処理エラー' };
+        console.error('❌ IPC: audio-processor-process-file エラー:', error);
+        const errorMessage = error instanceof Error ? error.message : '処理エラー';
+        return { success: false, error: errorMessage };
     }
 });
 // 音声の長さを取得
@@ -330,6 +380,24 @@ electron_1.ipcMain.handle('audio-processor-get-duration', async (event, blobData
         return { success: false, error: error instanceof Error ? error.message : '長さ取得エラー' };
     }
 });
+// セグメントファイルの読み込み（メモリ効率化）
+electron_1.ipcMain.handle('audio-processor-read-segment-file', async (event, filePath) => {
+    console.log('📁 IPC: audio-processor-read-segment-file', { filePath });
+    try {
+        if (!fs_1.default.existsSync(filePath)) {
+            throw new Error(`セグメントファイルが見つかりません: ${filePath}`);
+        }
+        const fileData = await fs_1.default.promises.readFile(filePath);
+        const base64Data = fileData.toString('base64');
+        console.log('✅ IPC: audio-processor-read-segment-file 成功');
+        return { success: true, data: base64Data };
+    }
+    catch (error) {
+        console.error('❌ IPC: audio-processor-read-segment-file エラー:', error);
+        const errorMessage = error instanceof Error ? error.message : 'ファイル読み込みエラー';
+        return { success: false, error: errorMessage };
+    }
+});
 // クリーンアップ
 electron_1.ipcMain.handle('audio-processor-cleanup', async () => {
     if (nativeAudioProcessor) {
@@ -343,6 +411,27 @@ electron_1.ipcMain.handle('audio-processor-cleanup', async () => {
         }
     }
     return { success: true };
+});
+// 一時ファイルの保存
+electron_1.ipcMain.handle('audio-processor-save-temp-file', async (event, fileName, arrayBufferData) => {
+    console.log('💾 IPC: audio-processor-save-temp-file', { fileName, dataSize: arrayBufferData.byteLength });
+    try {
+        // 一時ディレクトリを作成
+        const tempDir = path_1.default.join(os_1.default.tmpdir(), 'minutes-gen-audio');
+        await fs_1.default.promises.mkdir(tempDir, { recursive: true });
+        // 一時ファイルパスを生成
+        const tempPath = path_1.default.join(tempDir, `${Date.now()}-${fileName}`);
+        // ArrayBufferをBufferに変換してファイルに保存
+        const buffer = Buffer.from(arrayBufferData);
+        await fs_1.default.promises.writeFile(tempPath, buffer);
+        console.log('✅ IPC: audio-processor-save-temp-file 成功', { tempPath });
+        return { success: true, tempPath };
+    }
+    catch (error) {
+        console.error('❌ IPC: audio-processor-save-temp-file エラー:', error);
+        const errorMessage = error instanceof Error ? error.message : '一時ファイル保存エラー';
+        return { success: false, error: errorMessage };
+    }
 });
 // アプリ終了時のクリーンアップ
 electron_1.app.on('before-quit', async () => {

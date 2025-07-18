@@ -1,5 +1,5 @@
 // ===========================================
-// MinutesGen v1.0 - OpenAI API サービス（認証システム統合）
+// MinutesGen v0.7.5 - OpenAI API サービス（認証システム統合）
 // ===========================================
 
 import axios, { AxiosInstance, AxiosProxyConfig } from 'axios';
@@ -11,6 +11,16 @@ import { initializePromptStore, getActivePrompt, getAllPrompts } from './promptS
 import { ErrorHandler, APIError } from './errorHandler';
 import { md2docxService } from './md2docxService';
 import Encoding from 'encoding-japanese';
+import { 
+  shouldSplitContent, 
+  splitContentForO3, 
+  generateTokenLimitWarning, 
+  estimateTokenCount,
+  type ModelName,
+  getModelLimits
+} from '../utils/tokenLimits';
+import { splitTextIntoChunks } from '../utils/textSplitter';
+// import { md2docx } from './md2docxService'; // 不要なインポートを削除
 // WebCodecsProcessor はメモリ消費の問題があるため使用を停止
 // import { WebCodecsProcessor } from './webCodecsProcessor';
 
@@ -20,12 +30,32 @@ export class OpenAIService {
   private config;
   private corporateStatus;
   private authService: AuthService;
+  private lastRequestTime: number = 0;
+  private readonly MIN_REQUEST_INTERVAL = 1000; // 1秒間隔
   /**
    * 設定可能なチャンクサイズ。大容量音声ファイルはチャンク分割して順次アップロードする。
    * Whisper(GPT-4 Transcribe) エンドポイントの 100MB 制限を安全側に回避。
    */
   private get CHUNK_SIZE_BYTES(): number {
     return 15 * 1024 * 1024; // 15MB基準（方式b）
+  }
+
+  /**
+   * レート制限対策：リクエスト間の適切な間隔を確保
+   */
+  private async ensureRequestInterval(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    
+    if (timeSinceLastRequest < this.MIN_REQUEST_INTERVAL) {
+      const waitTime = this.MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+      console.log(`🕐 API レート制限対策: ${waitTime}ms 待機中... (前回リクエストから${timeSinceLastRequest}ms経過)`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    } else {
+      console.log(`✅ API レート制限OK: 前回リクエストから${timeSinceLastRequest}ms経過`);
+    }
+    
+    this.lastRequestTime = Date.now();
   }
 
   constructor() {
@@ -130,13 +160,26 @@ export class OpenAIService {
         // 400エラーなど、詳細情報を表示
         if (error.response) {
           const authMethod = this.authService.getAuthMethod();
-          console.error('エラーレスポンス詳細:', {
+          const errorDetails = {
             status: error.response.status,
             statusText: error.response.statusText,
             data: error.response.data,
             headers: error.response.headers,
             authMethod: authMethod,
-          });
+          };
+          
+          // 429エラーの場合はより詳細な情報を表示
+          if (error.response.status === 429) {
+            console.error('🚨 429エラー (Too Many Requests) 詳細:', {
+              ...errorDetails,
+              retryAfter: error.response.headers['retry-after'],
+              rateLimitRemaining: error.response.headers['x-ratelimit-remaining'],
+              rateLimitReset: error.response.headers['x-ratelimit-reset'],
+              timestamp: new Date().toISOString(),
+            });
+          } else {
+            console.error('エラーレスポンス詳細:', errorDetails);
+          }
         }
         
         return Promise.reject(error);
@@ -178,6 +221,7 @@ export class OpenAIService {
     onProgress?: (progress: ProcessingProgress) => void
   ): Promise<string> {
     await this.ensureAuthenticated();
+    await this.ensureRequestInterval();
 
     // ----- 大容量ファイルはffmpeg.wasmで適切なセグメントに分割 -----
     if (file.rawFile && file.rawFile.size > this.CHUNK_SIZE_BYTES) {
@@ -237,6 +281,7 @@ export class OpenAIService {
 
         // API呼び出し
         // Content-Type ヘッダーは自動付与させる（boundary を正しく設定）
+        await this.ensureRequestInterval();
         const response = await this.api.post('/audio/transcriptions', formData);
 
         // 進捗更新
@@ -349,7 +394,7 @@ export class OpenAIService {
 
     try {
       // 適切な音声プロセッサーで音声ファイルを分割（1倍速固定）
-      const audioProcessor = getAudioProcessor();
+      const audioProcessor = await getAudioProcessor();
       const segments = await audioProcessor.processLargeAudioFile(file, 600, onProgress);
       
       const transcriptSegments: string[] = [];
@@ -409,6 +454,7 @@ export class OpenAIService {
         }
 
         // Content-Type ヘッダーはブラウザに任せる（boundary を正しく付与させる）
+        await this.ensureRequestInterval();
         const response = await this.api.post('/audio/transcriptions', formData);
 
         const rawSegmentText = (response.data.text as string).trim();
@@ -903,6 +949,7 @@ ${transcription}`;
 - 単一の段落として出力
 - 句読点を適切に配置`;
 
+      await this.ensureRequestInterval();
       const response = await this.api.post('/chat/completions', {
         model: 'gpt-4o-mini', // 軽量モデルで十分
         messages: [
@@ -945,7 +992,7 @@ ${transcription}`;
       return docxBuffer;
     } catch (error) {
       console.error('DOCX生成に失敗しました:', error);
-      throw new Error(`DOCX生成エラー: ${error.message}`);
+      throw new Error(`DOCX生成エラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -1062,136 +1109,267 @@ ${transcription}`;
     onProgress?: (progress: ProcessingProgress) => void
   ): Promise<MinutesData> {
     await this.ensureAuthenticated();
+    await this.ensureRequestInterval();
 
     const authMethod = this.authService.getAuthMethod();
     const authMethodText = authMethod === 'corporate' ? '企業アカウント' : '個人アカウント';
+    const model = options.minutesModel as ModelName;
+
+    const modelLimits = getModelLimits(model);
+    const estimatedTokens = estimateTokenCount(transcription);
+
+    // デバッグ情報を追加
+    console.log(`[INFO] Start generateMinutes for model ${model}:`, {
+      transcriptionLength: transcription.length,
+      estimatedTokens: estimatedTokens,
+      modelContextWindow: modelLimits.contextWindow,
+      modelMaxOutput: modelLimits.maxOutputTokens,
+      modelTPM: (modelLimits as any).tpm || 'N/A',
+    });
+
+    // 動的処理分岐: 入力トークンがモデルの安全な入力上限を下回る場合は全文一括処理
+    if (estimatedTokens < modelLimits.safeInputTokens) {
+      console.log(`[INFO] Estimated tokens (${estimatedTokens}) are within the safe limit (${modelLimits.safeInputTokens}). Executing single request process.`);
+      return this.generateMinutesSingleRequest(transcription, options, onProgress);
+    } else {
+      console.log(`[WARN] Estimated tokens (${estimatedTokens}) exceed the safe limit (${modelLimits.safeInputTokens}). Switching to chunk processing.`);
+      return this.generateMinutesWithChunking(transcription, options, onProgress);
+    }
+  }
+
+  /**
+   * 全文一括処理: 単一のAPIリクエストで議事録を生成
+   */
+  private async generateMinutesSingleRequest(
+    transcription: string,
+    options: ProcessingOptions,
+    onProgress?: (progress: ProcessingProgress) => void
+  ): Promise<MinutesData> {
+    const model = options.minutesModel as ModelName;
+    const modelLimits = getModelLimits(model);
 
     return await ErrorHandler.executeWithRetry(
       async () => {
-        // 進捗更新
         onProgress?.({
           stage: 'generating',
           percentage: 20,
-          currentTask: `AIが議事録を生成中... (${authMethodText})`,
+          currentTask: `AIが議事録を生成中...`,
           estimatedTimeRemaining: 0,
-          logs: [{
-            id: Date.now().toString() + '_2',
-            timestamp: new Date(),
-            level: 'info',
-            message: `AIによる議事録生成を開始しました (${authMethodText})`,
-          }],
+          logs: [],
           startedAt: new Date(),
         });
 
-        // マルチフォーマットプロンプトの構築
-        const prompt = this.buildMultiFormatPrompt(transcription, options);
-
-        // GPT APIに送信
-        const systemPrompt = `あなたは議事録作成のプロフェッショナルです。指定された形式で高品質な議事録を作成してください。必ず全ての形式（MARKDOWN、HTML、RTF）で出力してください。`;
-
-        const isReasoningModel = options.minutesModel === 'o3';
+        const systemPrompt = `あなたは議事録作成のプロフェッショナルです。以下の全文トランスクリプトから、指定された形式で高品質な議事録を生成してください。`;
+        const userPrompt = this.buildMultiFormatPrompt(transcription, options);
 
         const baseParams: any = {
-          model: options.minutesModel,
+          model,
           messages: [
             { role: 'system' as const, content: systemPrompt },
-            { role: 'user' as const, content: prompt },
+            { role: 'user' as const, content: userPrompt },
           ],
         };
 
-        const apiParams: any = isReasoningModel
-          ? {
-              ...baseParams,
-              max_completion_tokens: 30000, // 30,000トークンに設定
-            }
-          : {
-              ...baseParams,
-              temperature: 0.3,
-              max_tokens: 30000, // 30,000トークンに設定
-            };
-
-        try {
-          if (onProgress) onProgress({
-            stage: 'generating',
-            percentage: 80,
-            currentTask: 'AIリクエストを送信中...',
-            estimatedTimeRemaining: 0,
-            logs: [{
-              id: Date.now().toString() + '_api',
-              timestamp: new Date(),
-              level: 'info',
-              message: `OpenAI API にリクエスト送信 (${authMethodText})`,
-            }],
-            startedAt: new Date(),
-          });
-
-          console.log('OpenAI API リクエスト:', {
-            ...apiParams,
-            messages: `[${apiParams.messages.length} messages]`,
-          });
-
-          const response = await this.api.post('/chat/completions', apiParams);
-
-          if (onProgress) onProgress({
-            stage: 'generating',
-            percentage: 90,
-            currentTask: 'AIレスポンスを受信しました。解析中...',
-            estimatedTimeRemaining: 0,
-            logs: [{
-              id: Date.now().toString() + '_resp',
-              timestamp: new Date(),
-              level: 'info',
-              message: `OpenAI API レスポンス受信 (${authMethodText})`,
-            }],
-            startedAt: new Date(),
-          });
-
-          // 進捗更新
-          onProgress?.({
-            stage: 'generating',
-            percentage: 95,
-            currentTask: '議事録を美しく整形中...',
-            estimatedTimeRemaining: 0,
-            logs: [{
-              id: Date.now().toString() + '_3',
-              timestamp: new Date(),
-              level: 'success',
-              message: `AIによる議事録生成が完了しました (${authMethodText})`,
-            }],
-            startedAt: new Date(),
-          });
-
-          // 結果を解析して構造化
-          const generatedContent = response.data.choices[0].message.content;
-          return await this.parseMultiFormatMinutes(generatedContent, options, transcription);
-        } catch (error) {
-          console.error('OpenAI API レスポンスエラー:', error);
-          throw new Error('議事録の生成に失敗しました');
+        let apiParams;
+        if (modelLimits.isReasoningModel) {
+          apiParams = {
+            ...baseParams,
+            max_completion_tokens: modelLimits.maxOutputTokens,
+          };
+        } else {
+          apiParams = {
+            ...baseParams,
+            temperature: 0.2,
+            max_tokens: modelLimits.maxOutputTokens,
+          };
         }
+
+        console.log('[DEBUG] Executing single request with params:', apiParams);
+        
+        await this.ensureRequestInterval();
+        const response = await this.api.post('/chat/completions', apiParams);
+        
+        onProgress?.({ stage: 'generating', percentage: 90, currentTask: 'AIレスポンスを解析中...', estimatedTimeRemaining: 0, logs: [], startedAt: new Date() });
+        const generatedContent = response.data.choices[0].message.content;
+        
+        return await this.parseMultiFormatMinutes(generatedContent, options, transcription);
       },
       (message, attempt, maxRetries) => {
-        // エラーハンドリング中の進捗更新
         onProgress?.({
           stage: 'generating',
           percentage: 20,
-          currentTask: message,
+          currentTask: `${message} (${attempt}/${maxRetries}回目)`,
           estimatedTimeRemaining: 0,
-          logs: [{
-            id: Date.now().toString() + '_retry',
-            timestamp: new Date(),
-            level: 'warning',
-            message: `${message} (${attempt}/${maxRetries}回目)`,
-          }],
+          logs: [],
           startedAt: new Date(),
         });
-      },
-      {
-        maxRetries: 5,
-        baseDelay: 3000,
-        maxDelay: 120000,
-        backoffMultiplier: 2,
       }
     );
+  }
+
+  /**
+   * 分割処理: 巨大なテキストをチャンクに分けて処理
+   */
+  private async generateMinutesWithChunking(
+    transcription: string,
+    options: ProcessingOptions,
+    onProgress?: (progress: ProcessingProgress) => void
+  ): Promise<MinutesData> {
+    const model = options.minutesModel as ModelName;
+    const chunks = splitTextIntoChunks(transcription, model, 29000); // チャンクサイズを29,000に調整
+    const totalChunks = chunks.length;
+    console.log(`[INFO] Text split into ${totalChunks} chunks.`);
+
+    const chunkResults: any[] = []; // JSON結果を格納するためany[]に変更
+
+    for (let i = 0; i < totalChunks; i++) {
+      const chunk = chunks[i];
+      const progressPercentage = 10 + Math.round((i / totalChunks) * 70);
+      onProgress?.({
+        stage: 'generating',
+        percentage: progressPercentage,
+        currentTask: `分割したファイル ${i + 1}/${totalChunks} を分析中...`,
+        estimatedTimeRemaining: 0,
+        logs: [],
+        startedAt: new Date(),
+      });
+
+      const systemPrompt = `あなたはテキスト分析の専門家です。以下のテキストチャンクから、指定された情報を抽出し、厳密なJSON形式で出力してください。
+
+【抽出項目】
+- speakers: このチャンクに登場する発言者の名前の配列 (例: ["田中 太郎", "山田 花子"])
+- utterances: 発言内容の配列。各要素は { speaker: "発言者名", timestamp: "発言時刻", text: "発言内容" } という形式のオブジェクト
+- decisions: このチャンクで決定された事項の配列 (文字列)
+- actions: このチャンクで発生したアクションアイテムの配列 (文字列)
+
+【重要事項】
+- JSON以外の余計なテキスト（例: 「はい、承知しました。」など）は絶対に出力しないでください。
+- 元の情報を省略・要約せず、全て抽出してください。
+- 該当する情報がない場合は、空の配列 [] を値としてください。`;
+
+      const userPrompt = `以下のテキストチャンクから指定された情報を抽出し、JSON形式で出力してください：\n\n${chunk}`;
+
+      const baseParams: any = {
+        model,
+        messages: [
+            { role: 'system' as const, content: systemPrompt },
+            { role: 'user' as const, content: userPrompt },
+        ],
+        response_format: { type: "json_object" }, // JSONモードを有効化
+      };
+      
+      let apiParams;
+      const modelLimits = getModelLimits(model);
+      if (modelLimits.isReasoningModel) {
+        apiParams = {
+          ...baseParams,
+          max_completion_tokens: 8000,
+        };
+      } else {
+        apiParams = {
+          ...baseParams,
+          temperature: 0.1,
+          max_tokens: 8000, 
+        };
+      }
+
+      try {
+        await ErrorHandler.executeWithRetry(async () => {
+          await this.ensureRequestInterval();
+          const response = await this.api.post('/chat/completions', apiParams);
+          const content = response.data.choices[0].message.content;
+
+          try {
+            const parsedResult = JSON.parse(content);
+            chunkResults.push(parsedResult);
+            console.log(`[DEBUG] Chunk ${i + 1} parsed successfully.`);
+          } catch (jsonError) {
+            console.error(`[ERROR] Chunk ${i + 1} result is not a valid JSON.`, { content, jsonError });
+            throw new Error(`分割したファイル ${i + 1} の解析結果が不正なJSON形式です。`);
+          }
+        }, (message, attempt, maxRetries) => {
+           onProgress?.({ stage: 'generating', percentage: 10 + Math.round((i / totalChunks) * 70), currentTask: `ファイル ${i+1}/${totalChunks} の処理を再試行中... (${attempt}/${maxRetries})`, estimatedTimeRemaining: 0, logs: [], startedAt: new Date() });
+        });
+      } catch (error) {
+          console.error(`[ERROR] Chunk ${i + 1} processing failed after retries.`, error);
+          throw new Error(`分割したファイル ${i + 1} の処理中にエラーが発生しました。`);
+      }
+    }
+
+    onProgress?.({ stage: 'generating', percentage: 85, currentTask: '分析結果を議事録に結合中...', estimatedTimeRemaining: 0, logs: [], startedAt: new Date() });
+
+    // オフラインでの結合処理
+    const combinedData = this.combineChunkResults(chunkResults);
+    const combinedMarkdown = this.buildMarkdownFromCombinedData(combinedData);
+    
+    // 最終的な整形は、全文処理と同じプロンプトを再利用するが、API呼び出しは1回だけ
+    const finalSystemPrompt = `あなたは議事録の整形専門家です。以下の完全な議事録テキストを、指定されたフォーマット（MARKDOWN、HTML、Word用Markdown）で美しく整形してください。内容を一切変更・削除・追加しないでください。`;
+    
+    const baseFinalParams: any = {
+      model,
+      messages: [
+          { role: 'system' as const, content: finalSystemPrompt },
+          { role: 'user' as const, content: this.buildMultiFormatPrompt(combinedMarkdown, options) },
+      ],
+    };
+
+    let finalApiParams;
+    const modelLimits = getModelLimits(model);
+    if (modelLimits.isReasoningModel) {
+      finalApiParams = {
+        ...baseFinalParams,
+        max_completion_tokens: modelLimits.maxOutputTokens,
+      };
+    } else {
+      finalApiParams = {
+        ...baseFinalParams,
+        temperature: 0.1,
+        max_tokens: modelLimits.maxOutputTokens,
+      };
+    }
+    
+    console.log('[DEBUG] Executing final formatting request for chunked data.');
+    const finalResponse = await this.api.post('/chat/completions', finalApiParams);
+    const finalContent = finalResponse.data.choices[0].message.content;
+    
+    return await this.parseMultiFormatMinutes(finalContent, options, transcription);
+  }
+
+  private combineChunkResults(chunkResults: any[]): any {
+    const combinedData = {
+      speakers: new Set<string>(),
+      utterances: [] as any[],
+      decisions: [] as any[],
+      actions: [] as any[]
+    };
+
+    for (const result of chunkResults) {
+      result.speakers?.forEach(speaker => combinedData.speakers.add(speaker));
+      combinedData.utterances.push(...(result.utterances || []));
+      combinedData.decisions.push(...(result.decisions || []));
+      combinedData.actions.push(...(result.actions || []));
+    }
+
+    combinedData.utterances.sort((a: any, b: any) => (a.timestamp || "").localeCompare(b.timestamp || ""));
+    return combinedData;
+  }
+
+  private buildMarkdownFromCombinedData(data: any): string {
+    let markdown = `# 議事録\n\n`;
+    markdown += `## 会議情報\n- **参加者**: ${Array.from(data.speakers).join(', ')}\n\n`;
+    markdown += `## 発言記録\n`;
+    data.utterances.forEach((u: any) => {
+      markdown += `- **${u.speaker || '不明'} (${u.timestamp || '時刻不明'})**: ${u.text}\n`;
+    });
+    markdown += `\n## 決定事項\n`;
+    data.decisions.forEach((d: any) => {
+      markdown += `- ${d}\n`;
+    });
+    markdown += `\n## アクションアイテム\n`;
+    data.actions.forEach((a: any) => {
+      markdown += `- ${a}\n`;
+    });
+    return markdown;
   }
 
   /**
@@ -1340,7 +1518,7 @@ ${transcription}`;
       },
       {
         format: 'word' as OutputFormat,
-        content: btoa(String.fromCharCode(...docxBuffer)),
+        content: btoa(String.fromCharCode.apply(null, Array.from(docxBuffer))),
         generatedAt: now,
         size: docxBuffer.length,
       }

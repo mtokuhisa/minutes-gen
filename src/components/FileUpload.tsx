@@ -36,13 +36,24 @@ import {
   InsertDriveFile,
   TextFields,
 } from '@mui/icons-material';
-import { AudioFile, FileValidation } from '../types';
+import {
+  AudioFile,
+  ProcessingOptions,
+  AppError,
+  FileValidation,
+} from '../types';
 import mammoth from 'mammoth';
 import Encoding from 'encoding-japanese';
 import { FileProcessor } from '../services/fileProcessor';
+import { 
+  shouldSplitContent, 
+  generateTokenLimitWarning, 
+  estimateTokenCount,
+  type ModelName 
+} from '../utils/tokenLimits';
 
 // ===========================================
-// MinutesGen v1.0 - ファイルアップロード
+// MinutesGen v0.7.5 - ファイルアップロード
 // ===========================================
 
 interface FileUploadProps {
@@ -51,6 +62,7 @@ interface FileUploadProps {
   onNext?: () => void;
   maxFileSize?: number;
   acceptedFormats?: string[];
+  onError: (error: AppError) => void;
 }
 
 export const FileUpload: React.FC<FileUploadProps> = React.memo(({
@@ -249,6 +261,40 @@ export const FileUpload: React.FC<FileUploadProps> = React.memo(({
   };
 
   /**
+   * 抽出されたテキストのトークン制限チェック
+   */
+  const checkTokenLimits = (text: string, fileName: string): { text: string; warning?: string } => {
+    if (!text || text.trim().length === 0) {
+      return { text };
+    }
+
+    const estimatedTokens = estimateTokenCount(text);
+    const hardLimit = 2000000; // 2Mトークンをハードリミットとして設定
+
+    if (estimatedTokens > hardLimit) {
+        const warning = `ファイル ${fileName} のトークン数 (${estimatedTokens.toLocaleString()}) がハードリミット (${hardLimit.toLocaleString()}) を超えています。処理を中止します。`;
+        console.warn(`⚠️ トークン制限超過: ${fileName}`, warning);
+        onError({
+            id: Date.now().toString(),
+            code: 'TOKEN_LIMIT_EXCEEDED',
+            message: warning,
+            timestamp: new Date(),
+            recoverable: false,
+        });
+        throw new Error(warning);
+    }
+    
+    const softLimit = 100000; // 100kトークンを超えたら警告
+    if (estimatedTokens > softLimit) {
+        const warning = `ファイル ${fileName} のトークン数 (${estimatedTokens.toLocaleString()}) が多く、処理に時間がかかるか、失敗する可能性があります。`;
+        console.warn(`⚠️ トークン警告: ${fileName}`, warning);
+        return { text, warning };
+    }
+    
+    return { text };
+  };
+
+  /**
    * 文書ファイルからテキストを抽出
    */
   const extractTextFromDocument = async (file: File): Promise<string> => {
@@ -319,7 +365,13 @@ export const FileUpload: React.FC<FileUploadProps> = React.memo(({
             throw new Error('テキストの抽出に失敗しました');
           }
           
-          return text;
+          const tokenCheck = checkTokenLimits(text, file.name);
+          if (tokenCheck.warning) {
+            // 警告をコンソールに出力（UI表示は後続処理で実装）
+            console.warn(`📊 ${file.name}: ${tokenCheck.warning}`);
+          }
+          
+          return tokenCheck.text;
           
         } catch (error) {
           console.error('テキストファイル処理エラー:', error);
@@ -328,7 +380,11 @@ export const FileUpload: React.FC<FileUploadProps> = React.memo(({
             const text = await file.text();
             if (text && text.trim().length > 0) {
               console.log('フォールバック処理成功');
-              return text;
+              const tokenCheck = checkTokenLimits(text, file.name);
+              if (tokenCheck.warning) {
+                console.warn(`📊 ${file.name} (フォールバック): ${tokenCheck.warning}`);
+              }
+              return tokenCheck.text;
             }
           } catch (fallbackError) {
             console.error('フォールバック処理も失敗:', fallbackError);
@@ -339,7 +395,16 @@ export const FileUpload: React.FC<FileUploadProps> = React.memo(({
       } else if (extension === 'md') {
         // Markdownファイルの場合
         const text = await file.text();
-        return text || '※Markdownファイルの内容を読み取れませんでした。';
+        if (!text) {
+          return '※Markdownファイルの内容を読み取れませんでした。';
+        }
+        
+        const tokenCheck = checkTokenLimits(text, file.name);
+        if (tokenCheck.warning) {
+          console.warn(`📊 ${file.name} (Markdown): ${tokenCheck.warning}`);
+        }
+        
+        return tokenCheck.text;
       } else if (extension === 'pdf') {
         // PDFファイルの場合（FileProcessorサービスを使用）
         try {
@@ -381,11 +446,87 @@ export const FileUpload: React.FC<FileUploadProps> = React.memo(({
         }
       } else if (extension === 'docx' || extension === 'doc') {
         // DOCXファイルの場合
-        const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.extractRawText({ arrayBuffer });
+        console.log('DOCX処理開始:', {
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type
+        });
         
-        // 抽出されたテキストを返す
-        return result.value;
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          console.log('ArrayBuffer読み込み成功:', {
+            bufferSize: arrayBuffer.byteLength,
+            fileName: file.name
+          });
+          
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          console.log('Mammoth抽出結果:', {
+            textLength: result.value?.length || 0,
+            hasMessages: result.messages?.length > 0,
+            messages: result.messages,
+            textPreview: result.value?.substring(0, 200)
+          });
+          
+          if (!result.value || result.value.trim().length === 0) {
+            console.warn('DOCX抽出結果が空:', file.name);
+            return `※ファイル「${file.name}」からテキストを抽出できませんでした。ファイルが破損している可能性があります。`;
+          }
+          
+          const tokenCheck = checkTokenLimits(result.value, file.name);
+          if (tokenCheck.warning) {
+            console.warn(`📊 ${file.name} (DOCX): ${tokenCheck.warning}`);
+          }
+          
+          console.log('DOCX処理完了:', {
+            fileName: file.name,
+            extractedLength: result.value.length,
+            tokenCount: tokenCheck.warning ? '制限超過' : '正常'
+          });
+          
+          // 抽出されたテキストを返す
+          return tokenCheck.text;
+        } catch (docxError) {
+          console.error('DOCX処理でエラー:', docxError);
+          
+          // フォールバック: FileReaderを使用した読み込み
+          try {
+            console.log('DOCX フォールバック処理開始');
+            const reader = new FileReader();
+            
+            return new Promise((resolve, reject) => {
+              reader.onload = async (e) => {
+                try {
+                  const arrayBuffer = e.target?.result as ArrayBuffer;
+                  if (!arrayBuffer) {
+                    throw new Error('FileReader結果が空です');
+                  }
+                  
+                  const result = await mammoth.extractRawText({ arrayBuffer });
+                  if (result.value && result.value.trim().length > 0) {
+                    console.log('DOCX フォールバック処理成功');
+                    const tokenCheck = checkTokenLimits(result.value, file.name);
+                    resolve(tokenCheck.text);
+                  } else {
+                    resolve(`※ファイル「${file.name}」からテキストを抽出できませんでした。`);
+                  }
+                } catch (fallbackError) {
+                  console.error('DOCX フォールバック処理も失敗:', fallbackError);
+                  resolve(`※ファイル「${file.name}」の処理中にエラーが発生しました。ファイルが破損していないか確認してください。`);
+                }
+              };
+              
+              reader.onerror = () => {
+                console.error('FileReader エラー:', reader.error);
+                resolve(`※ファイル「${file.name}」の読み込みに失敗しました。`);
+              };
+              
+              reader.readAsArrayBuffer(file);
+            });
+          } catch (fallbackError) {
+            console.error('フォールバック処理の初期化に失敗:', fallbackError);
+            return `※ファイル「${file.name}」の処理中にエラーが発生しました。ファイル形式を確認してください。`;
+          }
+        }
       } else {
         throw new Error('サポートされていない文書形式です');
       }
@@ -881,7 +1022,11 @@ export const FileUpload: React.FC<FileUploadProps> = React.memo(({
             errorCode: error?.code,
             src: target.src,
             fileName: selectedFile.name,
-            retryCount: audioRetryCount
+            fileSize: selectedFile.size,
+            fileType: selectedFile.metadata?.fileType,
+            pathType: selectedFile.path?.startsWith('electron-file://') ? 'electron-file' : 
+                                selectedFile.path?.startsWith('blob:') ? 'blob' : 'other',
+            hasRawFile: !!selectedFile.rawFile
           });
           reject(new Error(errorMessage));
         };

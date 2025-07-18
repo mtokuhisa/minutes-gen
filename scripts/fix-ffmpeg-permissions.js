@@ -101,24 +101,60 @@ exports.default = async function(context) {
     // Windowsの場合
     const unpackedFFmpegPath = path.join(appOutDir, 'resources', 'app.asar.unpacked', 'node_modules', 'ffmpeg-static');
     const unpackedFFprobePath = path.join(appOutDir, 'resources', 'app.asar.unpacked', 'node_modules', 'ffprobe-static');
-    const ffmpegBinaryPath = path.join(unpackedFFmpegPath, 'ffmpeg.exe');
-    const ffprobeBinaryPath = path.join(unpackedFFprobePath, 'ffprobe.exe');
     
+    // FFmpegバイナリの処理
+    const ffmpegBinaryPath = path.join(unpackedFFmpegPath, 'ffmpeg');
     console.log('📁 FFmpegバイナリパス:', ffmpegBinaryPath);
-    console.log('📁 FFprobeバイナリパス:', ffprobeBinaryPath);
     
     if (fs.existsSync(ffmpegBinaryPath)) {
       console.log('✅ Windows FFmpegバイナリを発見:', ffmpegBinaryPath);
-      // Windowsでは特別な権限設定は不要
     } else {
       console.warn('⚠️ FFmpegバイナリが見つかりません:', ffmpegBinaryPath);
+      
+      // 代替パスを確認
+      const altPaths = [
+        path.join(unpackedFFmpegPath, 'ffmpeg.exe'),
+        path.join(unpackedFFmpegPath, 'win32', 'ffmpeg.exe'),
+        path.join(unpackedFFmpegPath, 'win32', 'ffmpeg'),
+        path.join(unpackedFFmpegPath, 'bin', 'win32', 'ffmpeg.exe'),
+        path.join(unpackedFFmpegPath, 'bin', 'win32', 'ffmpeg'),
+        path.join(unpackedFFmpegPath, 'win32-x64', 'ffmpeg.exe'),
+        path.join(unpackedFFmpegPath, 'win32-ia32', 'ffmpeg.exe'),
+      ];
+      
+      for (const altPath of altPaths) {
+        if (fs.existsSync(altPath)) {
+          console.log('✅ 代替パスでFFmpegバイナリを発見:', altPath);
+          break;
+        }
+      }
     }
+    
+    // FFprobeバイナリの処理
+    const ffprobeBinaryPath = path.join(unpackedFFprobePath, 'ffprobe.exe');
+    console.log('📁 FFprobeバイナリパス:', ffprobeBinaryPath);
     
     if (fs.existsSync(ffprobeBinaryPath)) {
       console.log('✅ Windows FFprobeバイナリを発見:', ffprobeBinaryPath);
-      // Windowsでは特別な権限設定は不要
     } else {
       console.warn('⚠️ FFprobeバイナリが見つかりません:', ffprobeBinaryPath);
+      
+      // 代替パスを確認（ffprobe-staticの実際の構造に基づく）
+      const altPaths = [
+        path.join(unpackedFFprobePath, 'bin', 'win32', 'x64', 'ffprobe.exe'),
+        path.join(unpackedFFprobePath, 'bin', 'win32', 'ia32', 'ffprobe.exe'),
+        path.join(unpackedFFprobePath, 'ffprobe.exe'),
+        path.join(unpackedFFprobePath, 'bin', 'ffprobe.exe'),
+        path.join(unpackedFFprobePath, 'win32-x64', 'ffprobe.exe'),
+        path.join(unpackedFFprobePath, 'win32-ia32', 'ffprobe.exe'),
+      ];
+      
+      for (const altPath of altPaths) {
+        if (fs.existsSync(altPath)) {
+          console.log('✅ 代替パスでFFprobeバイナリを発見:', altPath);
+          break;
+        }
+      }
     }
   }
   

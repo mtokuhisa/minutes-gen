@@ -28,7 +28,7 @@ import { APIConfig, saveAPIConfig } from '../config/api';
 import { useTheme } from '../theme';
 
 // ===========================================
-// MinutesGen v1.0 - アプリケーションヘッダー
+// MinutesGen v0.7.5 - アプリケーションヘッダー
 // ===========================================
 
 interface AppHeaderProps {

@@ -1,5 +1,5 @@
 // ===========================================
-// MinutesGen v1.0 - 動的メモリ管理サービス
+// MinutesGen v0.7.5 - 動的メモリ管理サービス
 // ===========================================
 
 import { memoryEstimationService, MemoryEstimation } from './memoryEstimationService';

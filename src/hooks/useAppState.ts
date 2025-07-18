@@ -1,5 +1,5 @@
 // ===========================================
-// MinutesGen v1.0 - アプリケーション状態管理フック（認証統合）
+// MinutesGen v0.7.5 - アプリケーション状態管理フック（認証統合）
 // ===========================================
 
 import { useState, useCallback, useEffect } from 'react';
@@ -111,7 +111,7 @@ export const useAppState = () => {
         setCurrentStep(0);
       } else {
         // 認証済みの場合はファイル選択画面に進む
-        setCurrentStep(0);
+        setCurrentStep(1);
       }
     };
     
@@ -203,7 +203,7 @@ export const useAppState = () => {
         
         transcription = documentText;
         setProgress({
-          stage: '文字起こし完了',
+          stage: 'transcribing' as ProcessingStage,
           percentage: 50,
           currentStep: 2,
           totalSteps: 3,

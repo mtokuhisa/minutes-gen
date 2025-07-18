@@ -15,7 +15,7 @@ import {
 import { useTheme } from '../theme';
 
 // ===========================================
-// MinutesGen v1.0 - アプリケーションフッター  
+// MinutesGen v0.7.5 - アプリケーションフッター  
 // ===========================================
 
 export const AppFooter: React.FC = () => {
@@ -276,7 +276,7 @@ export const AppFooter: React.FC = () => {
                 fontSize: '0.75rem',
               }}
             >
-              v0.7.3 | Build 2025.07.11
+                                v0.7.5 | Build 2025.07.16
             </Typography>
           </Box>
         </Box>

@@ -1,5 +1,5 @@
 // ===========================================
-// MinutesGen v1.0 - エラーハンドリングサービス
+// MinutesGen v0.7.5 - エラーハンドリングサービス
 // ===========================================
 
 export interface APIError {
@@ -21,9 +21,9 @@ export interface RetryConfig {
 
 export class ErrorHandler {
   private static readonly DEFAULT_RETRY_CONFIG: RetryConfig = {
-    maxRetries: 3,
-    baseDelay: 1000, // 1秒
-    maxDelay: 30000, // 30秒
+    maxRetries: 5,
+    baseDelay: 2000, // 2秒
+    maxDelay: 60000, // 60秒
     backoffMultiplier: 2,
   };
 
@@ -88,14 +88,14 @@ export class ErrorHandler {
         };
 
       case 429:
-        const retryAfter = this.parseRetryAfter(error.response?.headers?.['retry-after']);
+        const retryAfter = this.parseRetryAfter(error.response?.headers?.['retry-after']) || 30; // デフォルト30秒
         return {
           code: 'rate_limit_exceeded',
           message: errorMessage,
           statusCode,
           retryAfter,
           isRetryable: true,
-          userMessage: `利用制限に達しました。${retryAfter ? `${retryAfter}秒後` : '少し時間をおいて'}に自動で再試行します。`,
+          userMessage: `OpenAI API利用制限に達しました。${retryAfter}秒後に自動で再試行します。`,
           technicalDetails: errorMessage,
         };
 
