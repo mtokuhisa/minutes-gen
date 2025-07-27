@@ -39,14 +39,13 @@ import {
   ListItemIcon,
   Tabs,
   Tab,
-  TabPanel,
 } from '@mui/material';
 import {
   Settings,
   Close,
   Science,
   CheckCircle,
-  Error,
+  Error as ErrorIcon,
   Warning,
   Info,
   ExpandMore,
@@ -62,6 +61,7 @@ import { APIConfig, getAPIConfig, validateAPIConfig, getCorporateStatus } from '
 interface APISettingsProps {
   open: boolean;
   onClose: () => void;
+  onSave?: (config: APIConfig) => void;
 }
 
 interface TestResult {
@@ -70,7 +70,7 @@ interface TestResult {
   details?: any;
 }
 
-export const APISettings: React.FC<APISettingsProps> = ({ open, onClose }) => {
+export const APISettings: React.FC<APISettingsProps> = ({ open, onClose, onSave }) => {
   const [authService] = useState(() => AuthService.getInstance());
   const [config, setConfig] = useState<APIConfig>(getAPIConfig());
   const [personalApiKey, setPersonalApiKey] = useState('');
@@ -93,10 +93,11 @@ export const APISettings: React.FC<APISettingsProps> = ({ open, onClose }) => {
         const savedPersonalKey = localStorage.getItem('minutesgen_personal_api_key');
         if (savedPersonalKey) {
           try {
-            const decrypted = authService.decryptApiKey(savedPersonalKey);
-            setPersonalApiKey(decrypted);
+            // TODO: decryptApiKeyメソッドが未実装のため、一時的にそのまま表示
+            // const decrypted = authService.decryptApiKey(savedPersonalKey);
+            setPersonalApiKey(savedPersonalKey); // 暫定的に暗号化前の値を使用
           } catch (error) {
-            console.warn('個人API KEYの復号に失敗:', error);
+            console.warn('個人API KEYの取得に失敗:', error);
           }
         }
       }
@@ -194,7 +195,7 @@ export const APISettings: React.FC<APISettingsProps> = ({ open, onClose }) => {
     try {
       // 企業パスワードで認証（すでに認証済みの場合）
       if (corporateStatus.available) {
-        await authService.authenticateWithCorporatePassword('Negsetunum');
+        await authService.authenticateWithPassword('Negsetunum'); // 正しいメソッド名に修正
         
         setTestResult({
           success: true,
@@ -337,7 +338,7 @@ export const APISettings: React.FC<APISettingsProps> = ({ open, onClose }) => {
               <Alert 
                 severity={testResult.success ? 'success' : 'error'} 
                 sx={{ mb: 2 }}
-                icon={testResult.success ? <CheckCircle /> : <Error />}
+                icon={testResult.success ? <CheckCircle /> : <ErrorIcon />}
               >
                 {testResult.message}
                 {testResult.details && (

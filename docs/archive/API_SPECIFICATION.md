@@ -3,13 +3,13 @@
 ## 利用するAI APIは以下の通り。現存する最新モデルであり勝手な変更は不可
 
 ### 音声認識
-**GPT-4 Transcribe**
+**gpt-4o-transcribe**
 
 ### 議事録生成  
-**GPT-4.1 or o3**（選択可能に）
+**gpt-4.1 or o3**（選択可能に）
 
 ### 音声発声（ポッドキャスト用）
-**GPT-4 Mini TTS**
+**gpt-4o-mini-tts**
 
 ---
 

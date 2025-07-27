@@ -69,6 +69,7 @@ export const FileUpload: React.FC<FileUploadProps> = React.memo(({
   selectedFile,
   onFileSelect,
   onNext,
+  onError,
   maxFileSize = 3 * 1024 * 1024 * 1024, // 3GB
   acceptedFormats = [
     // 音声・動画ファイル

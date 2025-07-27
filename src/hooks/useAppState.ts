@@ -8,11 +8,12 @@ import {
   ProcessingOptions, 
   MinutesData, 
   ProcessingProgress, 
+  ProcessingStage,
   AppError,
-  InfographicConfig,
   InfographicOutput,
   InfographicGenerationProgress,
 } from '../types';
+import { InfographicConfig } from '../types/infographic';
 import { OpenAIService } from '../services/openai';
 import { AuthService } from '../services/authService';
 import { APIConfig, getAPIConfig, saveAPIConfig } from '../config/api';
@@ -205,10 +206,10 @@ export const useAppState = () => {
         setProgress({
           stage: 'transcribing' as ProcessingStage,
           percentage: 50,
-          currentStep: 2,
-          totalSteps: 3,
+          currentTask: '文書を処理中...',
           estimatedTimeRemaining: 60,
-          startTime: new Date(),
+          logs: [],
+          startedAt: new Date(),
         });
       } else {
         // 音声・動画ファイルの場合は通常の文字起こし処理
@@ -279,16 +280,14 @@ export const useAppState = () => {
       const generator = new InfographicGenerator();
       
       const html = await generator.generateInfographic(
-        results,
+        results.summary, // MinutesDataのsummaryプロパティを文字列として渡す
         infographic.config,
         (progress) => {
           setInfographic(prev => ({
             ...prev,
             progress: {
-              stage: 'generating',
+              stage: 'rendering', // 有効なstageを使用
               percentage: progress,
-              currentTask: 'インフォグラフィック生成中...',
-              estimatedTimeRemaining: 0,
             }
           }));
         }
@@ -297,13 +296,8 @@ export const useAppState = () => {
       setInfographic(prev => ({
         ...prev,
         output: {
-          html,
-          metadata: {
-            pageCount: 1,
-            dimensions: { width: 800, height: 600 },
-            generatedAt: new Date(),
-            config: infographic.config!,
-          },
+          htmlContent: html, // InfographicOutput型に合わせてhtmlContentを使用
+          assets: {},
         },
         isGenerating: false,
         progress: null,

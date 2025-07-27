@@ -83,9 +83,17 @@ const loadCorporateConfig = (): CorporateConfig | null => {
           corporateConfigCacheTime = now;
           return null;
         }
-        corporateConfigCache = config;
-        corporateConfigCacheTime = now;
-        return config;
+        
+        // 型安全のためにconfigがCorporateConfig形式かチェック
+        if (config && typeof config === 'object' && 'apiKey' in config) {
+          corporateConfigCache = config as CorporateConfig;
+          corporateConfigCacheTime = now;
+          return config as CorporateConfig;
+        } else {
+          corporateConfigCache = null;
+          corporateConfigCacheTime = now;
+          return null;
+        }
       } catch (error) {
         console.warn('Electron API経由での企業設定読み込みに失敗:', error);
         // エラーが発生しても処理を続行し、認証サービスに委ねる
@@ -144,8 +152,8 @@ export const getAPIConfig = (): APIConfig => {
   }
 
   // 企業KEYの優先使用を判定
-  const useCorporateKey = corporateConfig?.apiKey && 
-    (corporateConfig.allowPersonalKeys !== false || !(localConfig as any)?.openaiApiKey);
+  const useCorporateKey = Boolean(corporateConfig?.apiKey && 
+    (corporateConfig.allowPersonalKeys !== false || !(localConfig as any)?.openaiApiKey));
 
   return {
     baseUrl: corporateConfig?.baseUrl || (localConfig as any)?.baseUrl || 'https://api.openai.com/v1',
