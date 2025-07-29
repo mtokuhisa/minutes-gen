@@ -13,6 +13,12 @@ declare global {
         onProgress: (callback: (progress: ProcessingProgress) => void) => void;
         offProgress: (callback: (progress: ProcessingProgress) => void) => void;
         saveToTempFile: (fileName: string, arrayBuffer: ArrayBuffer) => Promise<{ success: boolean; tempPath: string; error?: string }>;
+        saveFileToTemp: (fileName: string, arrayBuffer: ArrayBuffer) => Promise<{ success: boolean; tempPath: string; error?: string }>;
+        processFileByPath: (filePath: string, segmentDuration?: number) => Promise<{ success: boolean; segments?: any[]; error?: string }>;
+        startChunkedUpload: (fileName: string, fileSize: number) => Promise<{ success: boolean; sessionId: string; error?: string }>;
+        uploadChunk: (sessionId: string, chunkIndex: number, chunkBuffer: ArrayBuffer) => Promise<{ success: boolean; error?: string }>;
+        finalizeChunkedUpload: (sessionId: string) => Promise<{ success: boolean; tempPath: string; error?: string }>;
+        cleanupChunkedUpload: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
       };
       isElectron: boolean;
     };
@@ -141,7 +147,7 @@ export class NativeAudioProcessorService implements AudioProcessorInterface {
     segmentDurationSeconds: number = 600,
     onProgress?: (progress: ProcessingProgress) => void
   ): Promise<AudioSegmentWithPath[]> {
-    console.log('🎵 processLargeAudioFile開始:', {
+    console.log('🎵 processLargeAudioFile開始（戦略C）:', {
       fileName: file.name,
       fileSize: file.rawFile?.size,
       segmentDuration: segmentDurationSeconds
@@ -166,19 +172,19 @@ export class NativeAudioProcessorService implements AudioProcessorInterface {
         this.progressCallbacks.add(onProgress);
       }
 
-      // ファイルを一時的にファイルシステムに保存
-      console.log('💾 一時ファイルを作成中...');
-      const tempFilePath = await this.saveToTempFile(file.rawFile);
-      console.log('✅ 一時ファイル作成完了:', tempFilePath);
+      // **戦略C: ファイル安全保存（IPC制限回避）**
+      console.log('💾 戦略C: 一時ファイル作成中...');
+      const tempFilePath = await this.saveFileToTempPath(file.rawFile);
+      console.log('✅ 戦略C: 一時ファイル作成完了:', tempFilePath);
 
-      // Main processでファイルを処理
-      console.log('🔄 ElectronAPI audioProcessor.processFile() 呼び出し');
-      const result = await window.electronAPI!.audioProcessor.processFile(
+      // **戦略C: ファイルパス指定処理（ArrayBuffer転送回避）**
+      console.log('🔄 戦略C: ファイルパス指定処理開始');
+      const result = await window.electronAPI!.audioProcessor.processFileByPath(
         tempFilePath,
         segmentDurationSeconds
       );
 
-      console.log('📋 ファイル処理結果:', result);
+      console.log('📋 戦略C: ファイル処理結果:', result);
 
       if (!result.success) {
         throw new Error(result.error || '音声ファイルの処理に失敗しました');
@@ -201,11 +207,11 @@ export class NativeAudioProcessorService implements AudioProcessorInterface {
         return segmentWithPath;
       });
 
-      console.log('✅ processLargeAudioFile完了:', audioSegments.length, '個のセグメント');
+      console.log('✅ 戦略C: processLargeAudioFile完了:', audioSegments.length, '個のセグメント');
       return audioSegments;
       
     } catch (error) {
-      console.error('❌ processLargeAudioFileエラー:', error);
+      console.error('❌ 戦略C: processLargeAudioFileエラー:', error);
       throw error;
     } finally {
       if (onProgress) {
@@ -215,36 +221,125 @@ export class NativeAudioProcessorService implements AudioProcessorInterface {
   }
 
   /**
-   * ファイルを一時的にファイルシステムに保存
+   * **戦略C: ファイル安全保存（IPC制限完全回避）**
+   * 大容量ファイルをチャンクに分割してストリーミング転送
    */
-  private async saveToTempFile(file: File): Promise<string> {
-    console.log('💾 saveToTempFile開始:', file.name);
+  private async saveFileToTempPath(file: File): Promise<string> {
+    console.log('💾 戦略C: saveFileToTempPath開始:', file.name);
     
     try {
       // Electron環境を確認
       const electronAPI = (window as any).electronAPI;
-      if (!electronAPI?.audioProcessor?.saveToTempFile) {
-        throw new Error('ElectronのIPCが利用できません');
+      if (!electronAPI?.audioProcessor?.saveFileToTemp) {
+        throw new Error('ElectronのIPC（戦略C）が利用できません');
       }
 
-      // ファイルをArrayBufferに変換
-      const arrayBuffer = await file.arrayBuffer();
-      
-      console.log('📏 ArrayBufferサイズ:', arrayBuffer.byteLength);
-      
-      // ElectronのIPCを使用してファイルを保存
-      const result = await electronAPI.audioProcessor.saveToTempFile(file.name, arrayBuffer);
-      
-      if (!result.success) {
-        throw new Error(result.error || '一時ファイル保存に失敗しました');
+      const fileSize = file.size;
+      console.log('📏 戦略C: ファイルサイズ:', `${(fileSize / 1024 / 1024).toFixed(2)}MB`);
+
+      // **大容量ファイル判定: 100MB以上の場合はチャンク転送**
+      if (fileSize > 100 * 1024 * 1024) {
+        console.log('🔄 戦略C: 大容量ファイル - チャンク転送モード');
+        return await this.saveFileToTempPathChunked(file);
+      } else {
+        console.log('🔄 戦略C: 通常ファイル - 一括転送モード');
+        return await this.saveFileToTempPathDirect(file);
       }
       
-      console.log('✅ 一時ファイル保存成功:', result.tempPath);
-      return result.tempPath;
-      
     } catch (error) {
-      console.error('❌ saveToTempFileエラー:', error);
-      throw new Error(`一時ファイルの保存に失敗しました: ${error instanceof Error ? error.message : 'unknown error'}`);
+      console.error('❌ 戦略C: saveFileToTempPathエラー:', error);
+      throw new Error(`戦略C: ファイル保存に失敗しました: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
+  }
+
+  /**
+   * **戦略C: 通常サイズファイルの直接転送**
+   */
+  private async saveFileToTempPathDirect(file: File): Promise<string> {
+    const electronAPI = (window as any).electronAPI;
+    
+    // ファイルをArrayBufferに変換
+    const arrayBuffer = await file.arrayBuffer();
+    
+    // **戦略C: ファイル安全保存を使用（IPC制限回避）**
+    const result = await electronAPI.audioProcessor.saveFileToTemp(file.name, arrayBuffer);
+    
+    if (!result.success) {
+      throw new Error(result.error || '戦略C: ファイル保存に失敗しました');
+    }
+    
+    console.log('✅ 戦略C: 直接転送成功:', result.tempPath);
+    return result.tempPath;
+  }
+
+  /**
+   * **戦略C: 大容量ファイルのチャンク転送（IPC制限完全回避）**
+   */
+  private async saveFileToTempPathChunked(file: File): Promise<string> {
+    const electronAPI = (window as any).electronAPI;
+    const chunkSize = 50 * 1024 * 1024; // 50MBチャンク
+    const totalChunks = Math.ceil(file.size / chunkSize);
+    
+    console.log('📦 戦略C: チャンク転送開始', {
+      fileName: file.name,
+      fileSize: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
+      chunkSize: `${chunkSize / 1024 / 1024}MB`,
+      totalChunks
+    });
+
+    try {
+      // **Step 1: チャンク転送セッション開始**
+      const sessionResult = await electronAPI.audioProcessor.startChunkedUpload(file.name, file.size);
+      if (!sessionResult.success) {
+        throw new Error(sessionResult.error || 'チャンク転送セッション開始に失敗');
+      }
+      
+      const sessionId = sessionResult.sessionId;
+      console.log('🚀 戦略C: チャンク転送セッション開始:', sessionId);
+
+      // **Step 2: ファイルをチャンクに分割して転送**
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        const start = chunkIndex * chunkSize;
+        const end = Math.min(start + chunkSize, file.size);
+        const chunk = file.slice(start, end);
+        const chunkBuffer = await chunk.arrayBuffer();
+        
+        console.log(`📤 戦略C: チャンク ${chunkIndex + 1}/${totalChunks} 転送中...`, {
+          chunkSize: `${(chunkBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`,
+          progress: `${((chunkIndex + 1) / totalChunks * 100).toFixed(1)}%`
+        });
+
+        const chunkResult = await electronAPI.audioProcessor.uploadChunk(
+          sessionId, 
+          chunkIndex, 
+          chunkBuffer
+        );
+        
+        if (!chunkResult.success) {
+          throw new Error(`チャンク ${chunkIndex + 1} 転送失敗: ${chunkResult.error}`);
+        }
+      }
+
+      // **Step 3: チャンク結合とファイル完成**
+      console.log('🔧 戦略C: チャンク結合中...');
+      const finalResult = await electronAPI.audioProcessor.finalizeChunkedUpload(sessionId);
+      
+      if (!finalResult.success) {
+        throw new Error(finalResult.error || 'チャンク結合に失敗');
+      }
+
+      console.log('✅ 戦略C: チャンク転送完了:', finalResult.tempPath);
+      return finalResult.tempPath;
+
+    } catch (error) {
+      console.error('❌ 戦略C: チャンク転送エラー:', error);
+      // エラー時のクリーンアップを試行
+      try {
+        await electronAPI.audioProcessor.cleanupChunkedUpload(sessionId);
+      } catch (cleanupError) {
+        console.warn('⚠️ チャンク転送クリーンアップ警告:', cleanupError);
+      }
+      throw error;
     }
   }
 

@@ -2,6 +2,7 @@ import { ipcMain } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
+import { safeLog, safeError, safeWarn, safeDebug, safeInfo } from './safeLogger';
 
 // 大容量ファイルのストリーム処理用ハンドラー
 export const setupFileHandler = () => {
@@ -56,7 +57,7 @@ export const setupFileHandler = () => {
 
       return response.data;
     } catch (error) {
-      console.error('大容量ファイル処理エラー:', error);
+      safeError('大容量ファイル処理エラー:', error);
       throw error;
     }
   });
@@ -76,7 +77,7 @@ export const setupFileHandler = () => {
         lastModified: stats.mtime,
       };
     } catch (error) {
-      console.error('ファイル情報取得エラー:', error);
+      safeError('ファイル情報取得エラー:', error);
       throw error;
     }
   });
@@ -90,7 +91,7 @@ export const setupFileHandler = () => {
       }
       return false;
     } catch (error) {
-      console.error('一時ファイル削除エラー:', error);
+      safeError('一時ファイル削除エラー:', error);
       return false;
     }
   });

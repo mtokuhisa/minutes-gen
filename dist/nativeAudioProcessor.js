@@ -38,55 +38,93 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NativeAudioProcessor = void 0;
 const fluent_ffmpeg_1 = __importDefault(require("fluent-ffmpeg"));
-const ffmpeg_static_1 = __importDefault(require("ffmpeg-static"));
-const ffprobeStatic = require('ffprobe-static');
-const ffprobePath = ffprobeStatic.path;
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const os = __importStar(require("os"));
 const electron_1 = require("electron");
-// Windows版FFmpegパス修正のためのヘルパー
-function getCorrectFFmpegPath() {
-    if (!ffmpeg_static_1.default) {
-        throw new Error('FFmpegパスが設定されていません');
+const safeLogger_1 = require("./safeLogger");
+// **固定配置システム対応のFFmpeg/FFprobeパス取得関数**
+function getFFmpegPaths(ffmpegBinaryManager) {
+    let ffmpegPath;
+    let ffprobePath;
+    // 固定配置システムが利用可能な場合は固定パスを使用
+    if (ffmpegBinaryManager) {
+        ffmpegPath = ffmpegBinaryManager.getFixedFFmpegPath();
+        ffprobePath = ffmpegBinaryManager.getFixedFFprobePath();
+        (0, safeLogger_1.safeDebug)('🔗 FFmpeg固定配置パス使用:', { ffmpegPath, ffprobePath });
+        return { ffmpegPath, ffprobePath };
     }
-    // Windows版で拡張子を確認
-    if (process.platform === 'win32') {
-        // .exeが付いていない場合は追加
-        if (!ffmpeg_static_1.default.endsWith('.exe')) {
-            const exePath = ffmpeg_static_1.default + '.exe';
-            // 開発環境では実際のファイルの存在を確認
-            if (!electron_1.app.isPackaged) {
-                try {
-                    fs.accessSync(exePath, fs.constants.F_OK);
-                    console.log('✅ Windows開発環境でFFmpeg.exeバイナリを確認:', exePath);
-                    return exePath;
-                }
-                catch (error) {
-                    console.log('⚠️ Windows開発環境でFFmpeg.exeが見つからない、元のパスを使用:', ffmpeg_static_1.default);
-                    return ffmpeg_static_1.default;
-                }
+    // フォールバック: 従来の動的パス解決
+    (0, safeLogger_1.safeWarn)('⚠️ FFmpeg固定配置システム未利用 - フォールバックモード');
+    if (electron_1.app.isPackaged) {
+        // パッケージ化されたアプリの場合は app.asar.unpacked を使用
+        const resourcesPath = process.resourcesPath || path.join(__dirname, '..', '..', 'resources');
+        const unpackedPath = path.join(resourcesPath, 'app.asar.unpacked', 'node_modules');
+        if (process.platform === 'win32') {
+            // Windows用パス - 実際は拡張子なしで配置される
+            ffmpegPath = path.join(unpackedPath, 'ffmpeg-static', 'ffmpeg');
+            ffprobePath = path.join(unpackedPath, 'ffprobe-static', 'bin', 'win32', 'ia32', 'ffprobe.exe');
+        }
+        else if (process.platform === 'darwin') {
+            // macOS用パス
+            ffmpegPath = path.join(unpackedPath, 'ffmpeg-static', 'ffmpeg');
+            ffprobePath = path.join(unpackedPath, 'ffprobe-static', 'bin', 'darwin', 'arm64', 'ffprobe');
+            // x64の代替パス
+            if (!fs.existsSync(ffprobePath)) {
+                ffprobePath = path.join(unpackedPath, 'ffprobe-static', 'bin', 'darwin', 'x64', 'ffprobe');
             }
-            return exePath;
+        }
+        else {
+            // Linux用パス
+            ffmpegPath = path.join(unpackedPath, 'ffmpeg-static', 'ffmpeg');
+            ffprobePath = path.join(unpackedPath, 'ffprobe-static', 'bin', 'linux', 'x64', 'ffprobe');
         }
     }
-    return ffmpeg_static_1.default;
+    else {
+        // 開発環境の場合は直接node_modulesを参照
+        const nodeModulesPath = path.join(__dirname, '..', '..', 'node_modules');
+        if (process.platform === 'win32') {
+            // Windows開発環境 - 開発時は.exe拡張子が存在する可能性
+            ffmpegPath = path.join(nodeModulesPath, 'ffmpeg-static', 'ffmpeg.exe');
+            if (!fs.existsSync(ffmpegPath)) {
+                ffmpegPath = path.join(nodeModulesPath, 'ffmpeg-static', 'ffmpeg');
+            }
+            ffprobePath = path.join(nodeModulesPath, 'ffprobe-static', 'bin', 'win32', 'ia32', 'ffprobe.exe');
+        }
+        else if (process.platform === 'darwin') {
+            ffmpegPath = path.join(nodeModulesPath, 'ffmpeg-static', 'ffmpeg');
+            ffprobePath = path.join(nodeModulesPath, 'ffprobe-static', 'bin', 'darwin', 'arm64', 'ffprobe');
+            if (!fs.existsSync(ffprobePath)) {
+                ffprobePath = path.join(nodeModulesPath, 'ffprobe-static', 'bin', 'darwin', 'x64', 'ffprobe');
+            }
+        }
+        else {
+            ffmpegPath = path.join(nodeModulesPath, 'ffmpeg-static', 'ffmpeg');
+            ffprobePath = path.join(nodeModulesPath, 'ffprobe-static', 'bin', 'linux', 'x64', 'ffprobe');
+        }
+    }
+    (0, safeLogger_1.safeDebug)('🔧 FFmpegフォールバックパス:', { ffmpegPath, ffprobePath });
+    return { ffmpegPath, ffprobePath };
 }
 class NativeAudioProcessor {
-    constructor() {
+    constructor(ffmpegBinaryManager) {
         this.isInitialized = false;
         this.MAX_SEGMENT_SIZE = 15 * 1024 * 1024; // 15MBに戻す
         this.OVERLAP_SECONDS = 5; // 5秒のオーバーラップ
         this.tempDir = path.join(os.tmpdir(), 'minutes-gen-audio');
-        console.log('🎵 NativeAudioProcessor constructor', { tempDir: this.tempDir });
+        this.ffmpegBinaryManager = ffmpegBinaryManager;
+        (0, safeLogger_1.safeDebug)('🎵 NativeAudioProcessor constructor', {
+            tempDir: this.tempDir,
+            hasFixedBinaryManager: !!ffmpegBinaryManager
+        });
     }
     /**
      * ネイティブFFmpegを初期化
      */
     async initialize(onProgress) {
-        console.log('🚀 NativeAudioProcessor.initialize() 開始');
+        (0, safeLogger_1.safeInfo)('🚀 NativeAudioProcessor.initialize() 開始');
         if (this.isInitialized) {
-            console.log('✅ 既に初期化済み');
+            (0, safeLogger_1.safeDebug)('✅ 既に初期化済み');
             return;
         }
         onProgress?.({
@@ -104,175 +142,36 @@ class NativeAudioProcessor {
         });
         try {
             // 一時ディレクトリの作成
-            console.log('📁 一時ディレクトリ作成:', this.tempDir);
+            (0, safeLogger_1.safeDebug)('📁 一時ディレクトリ作成:', this.tempDir);
             await fs.promises.mkdir(this.tempDir, { recursive: true });
-            // FFmpegパスの設定（パッケージ化対応）
-            const correctedFFmpegPath = getCorrectFFmpegPath();
-            let resolvedFFmpegPath = correctedFFmpegPath;
-            let resolvedFFprobePath = ffprobePath;
-            if (correctedFFmpegPath) {
-                console.log('🔧 初期FFmpegパス:', correctedFFmpegPath);
-                console.log('🔧 初期FFprobeパス:', ffprobePath);
-                // パッケージ化されたアプリケーションでのパス解決
-                if (electron_1.app.isPackaged) {
-                    // app.asar.unpacked内のパスを確認
-                    const unpackedFFmpegPath = correctedFFmpegPath.replace('app.asar', 'app.asar.unpacked');
-                    const unpackedFFprobePath = ffprobePath.replace('app.asar', 'app.asar.unpacked');
-                    console.log('📦 パッケージ化されたアプリ - unpackedFFmpegパス確認:', unpackedFFmpegPath);
-                    console.log('📦 パッケージ化されたアプリ - unpackedFFprobeパス確認:', unpackedFFprobePath);
-                    try {
-                        await fs.promises.access(unpackedFFmpegPath, fs.constants.F_OK);
-                        resolvedFFmpegPath = unpackedFFmpegPath;
-                        console.log('✅ unpackedパスでFFmpegバイナリを発見');
-                    }
-                    catch (error) {
-                        console.log('❌ unpackedパスでFFmpegバイナリが見つかりません:', error);
-                        // 代替パスを試行
-                        const appPath = electron_1.app.getAppPath();
-                        let alternativeFFmpegPaths = [];
-                        if (process.platform === 'win32') {
-                            // Windows版の代替パスをより包括的に検索
-                            const basePath = path.join(appPath, '..', 'app.asar.unpacked', 'node_modules', 'ffmpeg-static');
-                            alternativeFFmpegPaths = [
-                                path.join(basePath, 'ffmpeg'),
-                                path.join(basePath, 'ffmpeg.exe'),
-                                path.join(basePath, 'win32', 'ffmpeg'),
-                                path.join(basePath, 'win32', 'ffmpeg.exe'),
-                                path.join(basePath, 'bin', 'win32', 'ffmpeg'),
-                                path.join(basePath, 'bin', 'win32', 'ffmpeg.exe'),
-                                path.join(basePath, 'bin', 'win32', 'x64', 'ffmpeg.exe'),
-                                path.join(basePath, 'bin', 'win32', 'ia32', 'ffmpeg.exe'),
-                                path.join(basePath, 'win32-x64', 'ffmpeg.exe'),
-                                path.join(basePath, 'win32-ia32', 'ffmpeg.exe'),
-                                // resources フォルダからも探す
-                                path.join(electron_1.app.getAppPath(), '..', 'resources', 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', 'ffmpeg'),
-                                path.join(electron_1.app.getAppPath(), '..', 'resources', 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', 'ffmpeg.exe'),
-                            ];
-                        }
-                        else {
-                            alternativeFFmpegPaths = [
-                                path.join(appPath, '..', 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', 'ffmpeg'),
-                                path.join(appPath, '..', 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', 'darwin', 'ffmpeg'),
-                                path.join(appPath, '..', 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', 'bin', 'darwin', 'ffmpeg'),
-                            ];
-                        }
-                        let ffmpegFound = false;
-                        for (const altPath of alternativeFFmpegPaths) {
-                            console.log('🔄 代替FFmpegパスを試行:', altPath);
-                            try {
-                                await fs.promises.access(altPath, fs.constants.F_OK);
-                                resolvedFFmpegPath = altPath;
-                                console.log('✅ 代替パスでFFmpegバイナリを発見');
-                                ffmpegFound = true;
-                                break;
-                            }
-                            catch (altError) {
-                                console.log('❌ 代替パスでFFmpegバイナリが見つかりません:', altPath);
-                            }
-                        }
-                        if (!ffmpegFound) {
-                            console.error('❌ 全ての代替パスでFFmpegバイナリが見つかりません');
-                            throw new Error(`FFmpegバイナリが見つかりません。パス: ${correctedFFmpegPath}, unpacked: ${unpackedFFmpegPath}, alternatives: ${alternativeFFmpegPaths.join(', ')}`);
-                        }
-                    }
-                    try {
-                        await fs.promises.access(unpackedFFprobePath, fs.constants.F_OK);
-                        resolvedFFprobePath = unpackedFFprobePath;
-                        console.log('✅ unpackedパスでFFprobeバイナリを発見');
-                    }
-                    catch (error) {
-                        console.log('❌ unpackedパスでFFprobeバイナリが見つかりません:', error);
-                        // 代替パスを試行（ffprobe-staticの実際の構造に基づく）
-                        const appPath = electron_1.app.getAppPath();
-                        const ffprobeBasePath = path.join(appPath, '..', 'app.asar.unpacked', 'node_modules', 'ffprobe-static');
-                        let alternativeFFprobePaths = [];
-                        if (process.platform === 'darwin') {
-                            alternativeFFprobePaths = [
-                                path.join(ffprobeBasePath, 'bin', 'darwin', 'arm64', 'ffprobe'),
-                                path.join(ffprobeBasePath, 'bin', 'darwin', 'x64', 'ffprobe'),
-                                path.join(ffprobeBasePath, 'ffprobe'),
-                            ];
-                        }
-                        else if (process.platform === 'win32') {
-                            alternativeFFprobePaths = [
-                                path.join(ffprobeBasePath, 'bin', 'win32', 'x64', 'ffprobe.exe'),
-                                path.join(ffprobeBasePath, 'bin', 'win32', 'ia32', 'ffprobe.exe'),
-                                path.join(ffprobeBasePath, 'ffprobe.exe'),
-                            ];
-                        }
-                        let ffprobeFound = false;
-                        for (const altPath of alternativeFFprobePaths) {
-                            console.log('🔄 代替FFprobeパスを試行:', altPath);
-                            try {
-                                await fs.promises.access(altPath, fs.constants.F_OK);
-                                resolvedFFprobePath = altPath;
-                                console.log('✅ 代替パスでFFprobeバイナリを発見');
-                                ffprobeFound = true;
-                                break;
-                            }
-                            catch (altError) {
-                                console.log('❌ 代替パスでFFprobeバイナリが見つかりません:', altPath);
-                            }
-                        }
-                        if (!ffprobeFound) {
-                            console.error('❌ 全ての代替パスでFFprobeバイナリが見つかりません');
-                            throw new Error(`FFprobeバイナリが見つかりません。パス: ${ffprobePath}, unpacked: ${unpackedFFprobePath}, alternatives: ${alternativeFFprobePaths.join(', ')}`);
-                        }
-                    }
-                }
-                else {
-                    // 開発環境での確認
-                    try {
-                        await fs.promises.access(correctedFFmpegPath, fs.constants.F_OK);
-                        await fs.promises.access(ffprobePath, fs.constants.F_OK);
-                        console.log('✅ 開発環境でFFmpeg/FFprobeバイナリを確認');
-                    }
-                    catch (error) {
-                        console.error('❌ 開発環境でFFmpeg/FFprobeバイナリが見つかりません:', error);
-                        throw new Error(`FFmpeg/FFprobeバイナリが見つかりません: ffmpeg=${correctedFFmpegPath}, ffprobe=${ffprobePath}`);
-                    }
-                }
-                console.log('🔧 最終的なFFmpegパス:', resolvedFFmpegPath);
-                console.log('🔧 最終的なFFprobeパス:', resolvedFFprobePath);
-                if (resolvedFFmpegPath) {
-                    fluent_ffmpeg_1.default.setFfmpegPath(resolvedFFmpegPath);
-                }
-                else {
-                    throw new Error('FFmpegパスが解決できませんでした');
-                }
-                if (resolvedFFprobePath) {
-                    fluent_ffmpeg_1.default.setFfprobePath(resolvedFFprobePath);
-                }
-                else {
-                    throw new Error('FFprobeパスが解決できませんでした');
-                }
-            }
-            else {
-                throw new Error('FFmpegの実行ファイルが見つかりません');
-            }
-            // FFmpegの動作確認（簡素化版）
-            console.log('🔍 FFmpeg動作確認開始');
+            // **固定配置システム対応のFFmpegパス設定**
+            const { ffmpegPath, ffprobePath } = getFFmpegPaths(this.ffmpegBinaryManager);
+            (0, safeLogger_1.safeDebug)('🔧 FFmpegパス設定:', { ffmpegPath, ffprobePath });
+            // fluent-ffmpegにパスを設定
+            fluent_ffmpeg_1.default.setFfmpegPath(ffmpegPath);
+            fluent_ffmpeg_1.default.setFfprobePath(ffprobePath);
+            // FFmpegの動作確認
             await this.testFFmpeg();
-            console.log('✅ FFmpeg動作確認完了');
             this.isInitialized = true;
             onProgress?.({
                 stage: 'transcribing',
-                percentage: 15,
+                percentage: 10,
                 currentTask: '✅ 音声処理システムの準備完了',
                 estimatedTimeRemaining: 0,
                 logs: [{
                         id: Date.now().toString(),
                         timestamp: new Date(),
                         level: 'success',
-                        message: 'ネイティブ音声処理システムの初期化が完了しました。'
+                        message: '音声処理システムが正常に初期化されました。'
                     }],
                 startedAt: new Date(),
             });
+            (0, safeLogger_1.safeInfo)('✅ NativeAudioProcessor初期化完了');
         }
         catch (error) {
-            console.error('❌ NativeAudioProcessor初期化エラー:', error);
+            (0, safeLogger_1.safeError)('❌ NativeAudioProcessor初期化エラー:', error);
             onProgress?.({
-                stage: 'transcribing',
+                stage: 'error',
                 percentage: 0,
                 currentTask: '❌ 音声処理システムの初期化に失敗',
                 estimatedTimeRemaining: 0,
@@ -280,78 +179,290 @@ class NativeAudioProcessor {
                         id: Date.now().toString(),
                         timestamp: new Date(),
                         level: 'error',
-                        message: `音声処理システムの初期化に失敗しました: ${error instanceof Error ? error.message : String(error)}`
+                        message: `音声処理システムの初期化に失敗しました: ${error instanceof Error ? error.message : 'unknown error'}`
                     }],
                 startedAt: new Date(),
             });
-            throw error;
+            throw new Error(`ネイティブ音声処理システムの初期化に失敗: ${error instanceof Error ? error.message : 'unknown error'}`);
         }
     }
     /**
-     * FFmpegの動作確認（簡素化版）
+     * FFmpeg動作確認（固定配置システム対応版）
      */
     async testFFmpeg() {
-        console.log('🔍 FFmpeg動作確認を開始');
-        // FFmpegPathの存在確認
-        if (!ffmpeg_static_1.default) {
+        (0, safeLogger_1.safeDebug)('🔍 FFmpeg動作確認を開始（固定配置システム対応）');
+        // **固定配置システム対応のFFmpegPath取得**
+        const { ffmpegPath } = getFFmpegPaths(this.ffmpegBinaryManager);
+        if (!ffmpegPath) {
             throw new Error('FFmpegの実行ファイルが見つかりません');
         }
-        console.log('✅ FFmpegパス確認完了:', ffmpeg_static_1.default);
-        // パッケージ化されたアプリケーションでのパス解決
-        let testPath = ffmpeg_static_1.default;
-        if (electron_1.app.isPackaged) {
-            const unpackedPath = ffmpeg_static_1.default.replace('app.asar', 'app.asar.unpacked');
-            if (fs.existsSync(unpackedPath)) {
-                testPath = unpackedPath;
+        (0, safeLogger_1.safeDebug)('✅ FFmpegパス確認完了:', ffmpegPath);
+        // 固定配置システム使用時は直接実行テスト
+        if (this.ffmpegBinaryManager) {
+            (0, safeLogger_1.safeDebug)('🔗 固定配置システム使用: 直接実行テスト');
+            return this.testFFmpegDirect(ffmpegPath);
+        }
+        // フォールバック: 従来の複数戦略テスト
+        (0, safeLogger_1.safeWarn)('⚠️ フォールバックモード: 複数戦略テスト実行');
+        // Windows環境では存在確認をスキップし、直接spawn実行でテスト
+        if (process.platform !== 'win32') {
+            // macOS/Linux環境のみファイル存在確認を実行
+            try {
+                await fs.promises.access(ffmpegPath, fs.constants.F_OK | fs.constants.X_OK);
+                (0, safeLogger_1.safeDebug)('✅ FFmpegバイナリアクセス確認完了:', ffmpegPath);
+            }
+            catch (error) {
+                (0, safeLogger_1.safeError)('❌ FFmpegバイナリアクセスエラー:', error);
+                throw new Error(`FFmpegバイナリにアクセスできません: ${ffmpegPath}`);
             }
         }
-        // ファイルの存在と実行権限を確認
-        try {
-            await fs.promises.access(testPath, fs.constants.F_OK | fs.constants.X_OK);
-            console.log('✅ FFmpegバイナリアクセス確認完了:', testPath);
+        else {
+            (0, safeLogger_1.safeDebug)('🪟 Windows環境: 戦略B第2段階を実行');
+            // Windows固有の詳細権限診断
+            try {
+                const stats = await fs.promises.stat(ffmpegPath);
+                (0, safeLogger_1.safeDebug)('📊 FFmpegファイル詳細:', {
+                    サイズ: `${(stats.size / 1024 / 1024).toFixed(2)}MB`,
+                    作成日時: stats.birthtime,
+                    変更日時: stats.mtime,
+                    権限: stats.mode.toString(8),
+                    実行可能: !!(stats.mode & fs.constants.S_IXUSR)
+                });
+            }
+            catch (error) {
+                (0, safeLogger_1.safeWarn)('⚠️ ファイル詳細取得に失敗:', error);
+            }
         }
-        catch (error) {
-            console.error('❌ FFmpegバイナリアクセスエラー:', error);
-            throw new Error(`FFmpegバイナリにアクセスできません: ${testPath}`);
-        }
-        // 簡単なバージョンチェック
+        // 戦略B第2段階: 複数の実行方法を試行
+        return this.tryMultipleExecutionStrategies(ffmpegPath);
+    }
+    /**
+     * 固定配置システム用の直接実行テスト
+     */
+    async testFFmpegDirect(ffmpegPath) {
         return new Promise((resolve, reject) => {
             const { spawn } = require('child_process');
-            const ffmpegProcess = spawn(testPath, ['-version'], {
-                stdio: ['pipe', 'pipe', 'pipe']
-            });
-            let stdout = '';
-            let stderr = '';
+            const spawnOptions = {
+                stdio: ['pipe', 'pipe', 'pipe'],
+                shell: process.platform === 'win32',
+                windowsHide: true,
+            };
+            (0, safeLogger_1.safeDebug)('🚀 FFmpeg固定配置実行テスト:', { ffmpegPath, spawnOptions });
+            const ffmpegProcess = spawn(ffmpegPath, ['-version'], spawnOptions);
+            let outputReceived = false;
             ffmpegProcess.stdout.on('data', (data) => {
-                stdout += data.toString();
+                const output = data.toString();
+                if (output.includes('ffmpeg version')) {
+                    outputReceived = true;
+                    (0, safeLogger_1.safeDebug)('✅ FFmpeg固定配置実行確認成功:', output.split('\n')[0]);
+                }
             });
             ffmpegProcess.stderr.on('data', (data) => {
+                const output = data.toString();
+                if (output.includes('ffmpeg version')) {
+                    outputReceived = true;
+                    (0, safeLogger_1.safeDebug)('✅ FFmpeg固定配置実行確認成功 (stderr):', output.split('\n')[0]);
+                }
+            });
+            ffmpegProcess.on('close', (code) => {
+                if (code === 0 && outputReceived) {
+                    (0, safeLogger_1.safeDebug)('✅ FFmpeg固定配置動作確認完了');
+                    resolve();
+                }
+                else {
+                    reject(new Error(`FFmpeg動作確認失敗 (exit code: ${code})`));
+                }
+            });
+            ffmpegProcess.on('error', (error) => {
+                (0, safeLogger_1.safeError)('❌ FFmpeg固定配置実行エラー:', error);
+                reject(new Error(`FFmpeg実行エラー: ${error.message}`));
+            });
+            setTimeout(() => {
+                ffmpegProcess.kill();
+                reject(new Error('FFmpeg動作確認タイムアウト'));
+            }, 10000);
+        });
+    }
+    /**
+     * 複数の実行戦略を試行（戦略B第2段階）
+     */
+    async tryMultipleExecutionStrategies(ffmpegPath) {
+        const strategies = [
+            {
+                name: '戦略B-1: 引用符付きshell実行',
+                execute: () => this.testFFmpegWithQuotedPath(ffmpegPath)
+            },
+            {
+                name: '戦略B-2: 安全ディレクトリコピー実行',
+                execute: () => this.testFFmpegWithSafeCopy(ffmpegPath)
+            },
+            {
+                name: '戦略B-3: PowerShell実行',
+                execute: () => this.testFFmpegWithPowerShell(ffmpegPath)
+            }
+        ];
+        let lastError = null;
+        for (const strategy of strategies) {
+            try {
+                (0, safeLogger_1.safeDebug)(`🚀 ${strategy.name}を試行中...`);
+                await strategy.execute();
+                (0, safeLogger_1.safeDebug)(`✅ ${strategy.name}が成功しました`);
+                return; // 成功したら終了
+            }
+            catch (error) {
+                (0, safeLogger_1.safeWarn)(`❌ ${strategy.name}が失敗:`, error);
+                lastError = error;
+                continue; // 次の戦略を試行
+            }
+        }
+        // すべての戦略が失敗した場合
+        throw new Error(`全ての実行戦略が失敗しました。最後のエラー: ${lastError?.message}`);
+    }
+    /**
+     * 戦略B-1: 引用符付きパスでのshell実行
+     */
+    async testFFmpegWithQuotedPath(ffmpegPath) {
+        return new Promise((resolve, reject) => {
+            const { spawn } = require('child_process');
+            const spawnOptions = {
+                stdio: ['pipe', 'pipe', 'pipe'],
+                shell: true, // 常にshell実行
+                windowsHide: true,
+            };
+            // 引用符でパスを囲む
+            const quotedPath = `"${ffmpegPath}"`;
+            (0, safeLogger_1.safeDebug)('🔧 引用符付きパス実行:', quotedPath);
+            const ffmpegProcess = spawn(quotedPath, ['-version'], spawnOptions);
+            let stdout = '';
+            let stderr = '';
+            ffmpegProcess.stdout?.on('data', (data) => {
+                stdout += data.toString();
+            });
+            ffmpegProcess.stderr?.on('data', (data) => {
                 stderr += data.toString();
             });
             ffmpegProcess.on('close', (code) => {
                 if (code === 0) {
-                    console.log('✅ FFmpegバージョン確認成功');
-                    console.log('📋 FFmpeg情報:', stdout.split('\n')[0]);
+                    (0, safeLogger_1.safeDebug)('✅ 戦略B-1: 引用符付き実行成功');
                     resolve();
                 }
                 else {
-                    console.error('❌ FFmpegバージョン確認失敗:', stderr);
-                    reject(new Error(`FFmpegバージョン確認失敗: ${stderr}`));
+                    reject(new Error(`引用符付き実行失敗 (code: ${code}): ${stderr}`));
                 }
             });
             ffmpegProcess.on('error', (error) => {
-                console.error('❌ FFmpegプロセス起動エラー:', error);
-                reject(error);
+                reject(new Error(`引用符付き実行エラー: ${error.message}`));
             });
-            // タイムアウトを設定（10秒）
-            const timeout = setTimeout(() => {
+            setTimeout(() => {
                 ffmpegProcess.kill('SIGTERM');
-                console.log('⏰ FFmpegテストタイムアウト');
-                reject(new Error('FFmpegテストがタイムアウトしました'));
+                reject(new Error('引用符付き実行タイムアウト'));
             }, 10000);
-            ffmpegProcess.on('close', () => {
-                clearTimeout(timeout);
+        });
+    }
+    /**
+     * 戦略B-2: 安全なディレクトリにコピーして実行
+     */
+    async testFFmpegWithSafeCopy(ffmpegPath) {
+        const os = require('os');
+        const path = require('path');
+        // ユーザーディレクトリの安全な場所を使用
+        const safeDir = path.join(os.homedir(), '.minutes-gen-temp');
+        const safePath = path.join(safeDir, 'ffmpeg.exe');
+        try {
+            // 安全ディレクトリを作成
+            if (!fs.existsSync(safeDir)) {
+                await fs.promises.mkdir(safeDir, { recursive: true });
+                (0, safeLogger_1.safeDebug)('📁 安全ディレクトリを作成:', safeDir);
+            }
+            // FFmpegバイナリをコピー
+            await fs.promises.copyFile(ffmpegPath, safePath);
+            (0, safeLogger_1.safeDebug)('📋 FFmpegバイナリをコピー完了:', safePath);
+            // コピーしたバイナリで実行テスト
+            return new Promise((resolve, reject) => {
+                const { spawn } = require('child_process');
+                const spawnOptions = {
+                    stdio: ['pipe', 'pipe', 'pipe'],
+                    shell: true,
+                    windowsHide: true,
+                };
+                const ffmpegProcess = spawn(`"${safePath}"`, ['-version'], spawnOptions);
+                let stdout = '';
+                let stderr = '';
+                ffmpegProcess.stdout?.on('data', (data) => {
+                    stdout += data.toString();
+                });
+                ffmpegProcess.stderr?.on('data', (data) => {
+                    stderr += data.toString();
+                });
+                ffmpegProcess.on('close', (code) => {
+                    // クリーンアップ
+                    fs.promises.unlink(safePath).catch(() => { });
+                    if (code === 0) {
+                        (0, safeLogger_1.safeDebug)('✅ 戦略B-2: 安全ディレクトリ実行成功');
+                        resolve();
+                    }
+                    else {
+                        reject(new Error(`安全ディレクトリ実行失敗 (code: ${code}): ${stderr}`));
+                    }
+                });
+                ffmpegProcess.on('error', (error) => {
+                    // クリーンアップ
+                    fs.promises.unlink(safePath).catch(() => { });
+                    reject(new Error(`安全ディレクトリ実行エラー: ${error.message}`));
+                });
+                setTimeout(() => {
+                    ffmpegProcess.kill('SIGTERM');
+                    fs.promises.unlink(safePath).catch(() => { });
+                    reject(new Error('安全ディレクトリ実行タイムアウト'));
+                }, 10000);
             });
+        }
+        catch (error) {
+            // クリーンアップ
+            if (fs.existsSync(safePath)) {
+                await fs.promises.unlink(safePath).catch(() => { });
+            }
+            throw new Error(`安全ディレクトリ準備エラー: ${error.message}`);
+        }
+    }
+    /**
+     * 戦略B-3: PowerShell経由での実行
+     */
+    async testFFmpegWithPowerShell(ffmpegPath) {
+        return new Promise((resolve, reject) => {
+            const { spawn } = require('child_process');
+            // PowerShellコマンドを構築
+            const psCommand = `& "${ffmpegPath}" -version`;
+            const spawnOptions = {
+                stdio: ['pipe', 'pipe', 'pipe'],
+                windowsHide: true,
+            };
+            (0, safeLogger_1.safeDebug)('🔧 PowerShell実行:', psCommand);
+            const psProcess = spawn('powershell.exe', ['-Command', psCommand], spawnOptions);
+            let stdout = '';
+            let stderr = '';
+            psProcess.stdout?.on('data', (data) => {
+                stdout += data.toString();
+            });
+            psProcess.stderr?.on('data', (data) => {
+                stderr += data.toString();
+            });
+            psProcess.on('close', (code) => {
+                if (code === 0) {
+                    (0, safeLogger_1.safeDebug)('✅ 戦略B-3: PowerShell実行成功');
+                    resolve();
+                }
+                else {
+                    reject(new Error(`PowerShell実行失敗 (code: ${code}): ${stderr}`));
+                }
+            });
+            psProcess.on('error', (error) => {
+                reject(new Error(`PowerShell実行エラー: ${error.message}`));
+            });
+            setTimeout(() => {
+                psProcess.kill('SIGTERM');
+                reject(new Error('PowerShell実行タイムアウト'));
+            }, 10000);
         });
     }
     /**
@@ -361,16 +472,10 @@ class NativeAudioProcessor {
         await this.initialize(onProgress);
         try {
             // fluent-ffmpegライブラリに確実にFFmpegパスを設定
-            let resolvedFFmpegPath = ffmpeg_static_1.default;
-            if (electron_1.app.isPackaged && ffmpeg_static_1.default) {
-                const unpackedPath = ffmpeg_static_1.default.replace('app.asar', 'app.asar.unpacked');
-                if (fs.existsSync(unpackedPath)) {
-                    resolvedFFmpegPath = unpackedPath;
-                }
-            }
-            if (resolvedFFmpegPath) {
-                console.log('🔧 processLargeAudioFileでFFmpegパスを設定:', resolvedFFmpegPath);
-                fluent_ffmpeg_1.default.setFfmpegPath(resolvedFFmpegPath);
+            const { ffmpegPath } = getFFmpegPaths(this.ffmpegBinaryManager);
+            if (ffmpegPath) {
+                (0, safeLogger_1.safeDebug)('🔧 processLargeAudioFileでFFmpegパスを設定:', ffmpegPath);
+                fluent_ffmpeg_1.default.setFfmpegPath(ffmpegPath);
             }
             onProgress?.({
                 stage: 'transcribing',
@@ -385,13 +490,13 @@ class NativeAudioProcessor {
                     }],
                 startedAt: new Date(),
             });
-            console.log('🎵 音声ファイル分析開始:', inputPath);
+            (0, safeLogger_1.safeInfo)('🎵 音声ファイル分析開始:', inputPath);
             // 音声ファイルのメタデータを取得
             const audioInfo = await this.getAudioInfo(inputPath);
-            console.log('📋 音声ファイル情報:', audioInfo);
+            (0, safeLogger_1.safeDebug)('📋 音声ファイル情報:', audioInfo);
             const totalDuration = audioInfo.duration;
             const segmentCount = Math.ceil(totalDuration / segmentDurationSeconds);
-            console.log(`🔢 総再生時間: ${totalDuration}秒, セグメント数: ${segmentCount}`);
+            (0, safeLogger_1.safeInfo)(`🔢 総再生時間: ${totalDuration}秒, セグメント数: ${segmentCount}`);
             onProgress?.({
                 stage: 'transcribing',
                 percentage: 30,
@@ -412,12 +517,12 @@ class NativeAudioProcessor {
                 const endTime = Math.min((i + 1) * segmentDurationSeconds, totalDuration);
                 const actualDuration = endTime - startTime;
                 if (actualDuration <= 0) {
-                    console.warn(`⚠️ セグメント ${i + 1} の再生時間が0以下です。スキップします。`);
+                    (0, safeLogger_1.safeWarn)(`⚠️ セグメント ${i + 1} の再生時間が0以下です。スキップします。`);
                     continue;
                 }
                 const segmentFileName = `segment_${i + 1}_${Date.now()}.wav`;
                 const segmentPath = path.join(this.tempDir, segmentFileName);
-                console.log(`🎵 セグメント ${i + 1}/${segmentCount} 生成中: ${startTime}s - ${endTime}s`);
+                (0, safeLogger_1.safeDebug)(`🎵 セグメント ${i + 1}/${segmentCount} 生成中: ${startTime}s - ${endTime}s`);
                 // 進捗更新
                 const segmentProgress = 30 + (i / segmentCount) * 40;
                 onProgress?.({
@@ -442,9 +547,9 @@ class NativeAudioProcessor {
                     startTime: startTime,
                     endTime: endTime
                 });
-                console.log(`✅ セグメント ${i + 1} 完了: ${segmentPath}`);
+                (0, safeLogger_1.safeDebug)(`✅ セグメント ${i + 1} 完了: ${segmentPath}`);
             }
-            console.log(`🎉 音声分割完了: ${audioSegments.length}個のセグメント`);
+            (0, safeLogger_1.safeInfo)(`🎉 音声分割完了: ${audioSegments.length}個のセグメント`);
             onProgress?.({
                 stage: 'transcribing',
                 percentage: 70,
@@ -461,7 +566,7 @@ class NativeAudioProcessor {
             return audioSegments;
         }
         catch (error) {
-            console.error('❌ 大容量音声ファイル処理エラー:', error);
+            (0, safeLogger_1.safeError)('❌ 大容量音声ファイル処理エラー:', error);
             onProgress?.({
                 stage: 'transcribing',
                 percentage: 0,
@@ -555,49 +660,12 @@ class NativeAudioProcessor {
      */
     async getAudioInfo(filePath) {
         // FFmpeg/FFprobeパスを確実に設定
-        let resolvedFFmpegPath = ffmpeg_static_1.default;
-        let resolvedFFprobePath = ffprobePath;
-        if (electron_1.app.isPackaged && ffmpeg_static_1.default && ffprobePath) {
-            const unpackedFFmpegPath = ffmpeg_static_1.default.replace('app.asar', 'app.asar.unpacked');
-            const unpackedFFprobePath = ffprobePath.replace('app.asar', 'app.asar.unpacked');
-            if (fs.existsSync(unpackedFFmpegPath)) {
-                resolvedFFmpegPath = unpackedFFmpegPath;
-            }
-            if (fs.existsSync(unpackedFFprobePath)) {
-                resolvedFFprobePath = unpackedFFprobePath;
-            }
-            else {
-                // 代替パスを試行（ffprobe-staticの実際の構造に基づく）
-                const appPath = electron_1.app.getAppPath();
-                const ffprobeBasePath = path.join(appPath, '..', 'app.asar.unpacked', 'node_modules', 'ffprobe-static');
-                let alternativeFFprobePaths = [];
-                if (process.platform === 'darwin') {
-                    alternativeFFprobePaths = [
-                        path.join(ffprobeBasePath, 'bin', 'darwin', 'arm64', 'ffprobe'),
-                        path.join(ffprobeBasePath, 'bin', 'darwin', 'x64', 'ffprobe'),
-                        path.join(ffprobeBasePath, 'ffprobe'),
-                    ];
-                }
-                else if (process.platform === 'win32') {
-                    alternativeFFprobePaths = [
-                        path.join(ffprobeBasePath, 'bin', 'win32', 'x64', 'ffprobe.exe'),
-                        path.join(ffprobeBasePath, 'bin', 'win32', 'ia32', 'ffprobe.exe'),
-                        path.join(ffprobeBasePath, 'ffprobe.exe'),
-                    ];
-                }
-                for (const altPath of alternativeFFprobePaths) {
-                    if (fs.existsSync(altPath)) {
-                        resolvedFFprobePath = altPath;
-                        break;
-                    }
-                }
-            }
+        const { ffmpegPath, ffprobePath } = getFFmpegPaths(this.ffmpegBinaryManager);
+        if (ffmpegPath) {
+            fluent_ffmpeg_1.default.setFfmpegPath(ffmpegPath);
         }
-        if (resolvedFFmpegPath) {
-            fluent_ffmpeg_1.default.setFfmpegPath(resolvedFFmpegPath);
-        }
-        if (resolvedFFprobePath) {
-            fluent_ffmpeg_1.default.setFfprobePath(resolvedFFprobePath);
+        if (ffprobePath) {
+            fluent_ffmpeg_1.default.setFfprobePath(ffprobePath);
         }
         return new Promise((resolve, reject) => {
             fluent_ffmpeg_1.default.ffprobe(filePath, (err, metadata) => {
@@ -618,49 +686,12 @@ class NativeAudioProcessor {
      */
     async extractAudioSegment(inputPath, outputPath, startTime, duration) {
         // FFmpeg/FFprobeパスを確実に設定
-        let resolvedFFmpegPath = ffmpeg_static_1.default;
-        let resolvedFFprobePath = ffprobePath;
-        if (electron_1.app.isPackaged && ffmpeg_static_1.default && ffprobePath) {
-            const unpackedFFmpegPath = ffmpeg_static_1.default.replace('app.asar', 'app.asar.unpacked');
-            const unpackedFFprobePath = ffprobePath.replace('app.asar', 'app.asar.unpacked');
-            if (fs.existsSync(unpackedFFmpegPath)) {
-                resolvedFFmpegPath = unpackedFFmpegPath;
-            }
-            if (fs.existsSync(unpackedFFprobePath)) {
-                resolvedFFprobePath = unpackedFFprobePath;
-            }
-            else {
-                // 代替パスを試行（ffprobe-staticの実際の構造に基づく）
-                const appPath = electron_1.app.getAppPath();
-                const ffprobeBasePath = path.join(appPath, '..', 'app.asar.unpacked', 'node_modules', 'ffprobe-static');
-                let alternativeFFprobePaths = [];
-                if (process.platform === 'darwin') {
-                    alternativeFFprobePaths = [
-                        path.join(ffprobeBasePath, 'bin', 'darwin', 'arm64', 'ffprobe'),
-                        path.join(ffprobeBasePath, 'bin', 'darwin', 'x64', 'ffprobe'),
-                        path.join(ffprobeBasePath, 'ffprobe'),
-                    ];
-                }
-                else if (process.platform === 'win32') {
-                    alternativeFFprobePaths = [
-                        path.join(ffprobeBasePath, 'bin', 'win32', 'x64', 'ffprobe.exe'),
-                        path.join(ffprobeBasePath, 'bin', 'win32', 'ia32', 'ffprobe.exe'),
-                        path.join(ffprobeBasePath, 'ffprobe.exe'),
-                    ];
-                }
-                for (const altPath of alternativeFFprobePaths) {
-                    if (fs.existsSync(altPath)) {
-                        resolvedFFprobePath = altPath;
-                        break;
-                    }
-                }
-            }
+        const { ffmpegPath, ffprobePath } = getFFmpegPaths(this.ffmpegBinaryManager);
+        if (ffmpegPath) {
+            fluent_ffmpeg_1.default.setFfmpegPath(ffmpegPath);
         }
-        if (resolvedFFmpegPath) {
-            fluent_ffmpeg_1.default.setFfmpegPath(resolvedFFmpegPath);
-        }
-        if (resolvedFFprobePath) {
-            fluent_ffmpeg_1.default.setFfprobePath(resolvedFFprobePath);
+        if (ffprobePath) {
+            fluent_ffmpeg_1.default.setFfprobePath(ffprobePath);
         }
         return new Promise((resolve, reject) => {
             (0, fluent_ffmpeg_1.default)(inputPath)
@@ -672,11 +703,11 @@ class NativeAudioProcessor {
                 .format('wav')
                 .output(outputPath)
                 .on('end', () => {
-                console.log(`✅ セグメント抽出完了: ${outputPath}`);
+                (0, safeLogger_1.safeDebug)(`✅ セグメント抽出完了: ${outputPath}`);
                 resolve();
             })
                 .on('error', (error) => {
-                console.error(`❌ セグメント抽出エラー: ${error.message}`);
+                (0, safeLogger_1.safeError)(`❌ セグメント抽出エラー: ${error.message}`);
                 reject(new Error(`セグメント抽出エラー: ${error.message}`));
             })
                 .run();
@@ -686,6 +717,10 @@ class NativeAudioProcessor {
      * 音声の長さを取得
      */
     async getAudioDuration(filePath) {
+        const { ffmpegPath } = getFFmpegPaths(this.ffmpegBinaryManager);
+        if (!ffmpegPath) {
+            throw new Error('FFmpegパスが設定されていません');
+        }
         return new Promise((resolve, reject) => {
             fluent_ffmpeg_1.default.ffprobe(filePath, (err, metadata) => {
                 if (err) {
@@ -791,7 +826,7 @@ class NativeAudioProcessor {
             }
         }
         catch (error) {
-            console.warn('ネイティブ音声処理システムクリーンアップエラー:', error);
+            (0, safeLogger_1.safeWarn)('ネイティブ音声処理システムクリーンアップエラー:', error);
         }
     }
 }

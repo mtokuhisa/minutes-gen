@@ -30,11 +30,11 @@ jest.mock('../../services/promptStore', () => ({
 
 const defaultOptions: ProcessingOptionsType = {
   language: 'ja',
+  speed: 'normal',
   minutesModel: 'gpt-4.1',
   selectedPrompt: 'preset1',
   promptType: 'preset',
   punctuation: true,
-  timestamps: false,
   customPrompt: '',
 };
 

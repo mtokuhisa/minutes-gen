@@ -59,7 +59,7 @@ interface ProcessingProgressProps {
   selectedFile?: {
     name: string;
     size: number;
-    format?: string;  // AudioFileのformatプロパティに対応
+    type: string;
     duration?: number;
     metadata?: any;
   } | null;
@@ -449,7 +449,7 @@ export const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
               />
             )}
             <Chip 
-              label={`形式: ${selectedFile.format?.toUpperCase() || 'Unknown'}`}
+              label={`形式: ${selectedFile.type?.split('/')[1]?.toUpperCase() || 'Unknown'}`}
               size="small"
               sx={{ bgcolor: 'rgba(76, 175, 80, 0.2)' }}
             />

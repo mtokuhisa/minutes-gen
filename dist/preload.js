@@ -1,7 +1,18 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
-console.log('🔧 preload.ts が実行されました');
+// preload環境用の安全なログ関数（最小限）
+const preloadLog = (message, ...args) => {
+    try {
+        if (process.env.NODE_ENV === 'development') {
+            console.log(`[Preload] ${message}`, ...args);
+        }
+    }
+    catch (error) {
+        // preload環境でログエラーが発生しても処理を続行
+    }
+};
+preloadLog('🔧 preload.ts が実行されました');
 // レンダラープロセスに安全にAPIを公開
 electron_1.contextBridge.exposeInMainWorld('electronAPI', {
     // 企業設定ファイルを読み込む関数（IPCを使用）
@@ -21,8 +32,15 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
         readSegmentFile: (filePath) => electron_1.ipcRenderer.invoke('audio-processor-read-segment-file', filePath),
         // クリーンアップ
         cleanup: () => electron_1.ipcRenderer.invoke('audio-processor-cleanup'),
-        // 一時ファイル保存
-        saveToTempFile: (fileName, arrayBufferData) => electron_1.ipcRenderer.invoke('audio-processor-save-temp-file', fileName, arrayBufferData),
+        // **戦略C: ファイルを安全な一時ファイルとして保存**
+        saveFileToTemp: (fileName, arrayBufferData) => electron_1.ipcRenderer.invoke('audio-processor-save-file-to-temp', fileName, arrayBufferData),
+        // **戦略C: ファイルパスを使用した処理**
+        processFileByPath: (filePath, segmentDuration = 600) => electron_1.ipcRenderer.invoke('audio-processor-process-file-by-path', filePath, segmentDuration),
+        // **戦略C: チャンク転送API（大容量ファイル対応）**
+        startChunkedUpload: (fileName, fileSize) => electron_1.ipcRenderer.invoke('audio-processor-start-chunked-upload', fileName, fileSize),
+        uploadChunk: (sessionId, chunkIndex, chunkBuffer) => electron_1.ipcRenderer.invoke('audio-processor-upload-chunk', sessionId, chunkIndex, chunkBuffer),
+        finalizeChunkedUpload: (sessionId) => electron_1.ipcRenderer.invoke('audio-processor-finalize-chunked-upload', sessionId),
+        cleanupChunkedUpload: (sessionId) => electron_1.ipcRenderer.invoke('audio-processor-cleanup-chunked-upload', sessionId),
         // 進捗通知の受信
         onProgress: (callback) => {
             electron_1.ipcRenderer.on('audio-processor-progress', (event, progress) => callback(progress));
@@ -33,4 +51,4 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
         },
     },
 });
-console.log('🔧 contextBridge.exposeInMainWorld が完了しました');
+preloadLog('🔧 contextBridge.exposeInMainWorld が完了しました');

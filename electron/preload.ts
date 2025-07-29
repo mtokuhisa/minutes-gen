@@ -1,6 +1,17 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-console.log('🔧 preload.ts が実行されました');
+// preload環境用の安全なログ関数（最小限）
+const preloadLog = (message: string, ...args: any[]) => {
+  try {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Preload] ${message}`, ...args);
+    }
+  } catch (error) {
+    // preload環境でログエラーが発生しても処理を続行
+  }
+};
+
+preloadLog('🔧 preload.ts が実行されました');
 
 // レンダラープロセスに安全にAPIを公開
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -30,9 +41,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // クリーンアップ
     cleanup: () => ipcRenderer.invoke('audio-processor-cleanup'),
     
-    // 一時ファイル保存
-    saveToTempFile: (fileName: string, arrayBufferData: ArrayBuffer) =>
-      ipcRenderer.invoke('audio-processor-save-temp-file', fileName, arrayBufferData),
+    // **戦略C: ファイルを安全な一時ファイルとして保存**
+    saveFileToTemp: (fileName: string, arrayBufferData: ArrayBuffer) =>
+      ipcRenderer.invoke('audio-processor-save-file-to-temp', fileName, arrayBufferData),
+    
+    // **戦略C: ファイルパスを使用した処理**
+    processFileByPath: (filePath: string, segmentDuration: number = 600) =>
+      ipcRenderer.invoke('audio-processor-process-file-by-path', filePath, segmentDuration),
+    
+    // **戦略C: チャンク転送API（大容量ファイル対応）**
+    startChunkedUpload: (fileName: string, fileSize: number) =>
+      ipcRenderer.invoke('audio-processor-start-chunked-upload', fileName, fileSize),
+    
+    uploadChunk: (sessionId: string, chunkIndex: number, chunkBuffer: ArrayBuffer) =>
+      ipcRenderer.invoke('audio-processor-upload-chunk', sessionId, chunkIndex, chunkBuffer),
+    
+    finalizeChunkedUpload: (sessionId: string) =>
+      ipcRenderer.invoke('audio-processor-finalize-chunked-upload', sessionId),
+    
+    cleanupChunkedUpload: (sessionId: string) =>
+      ipcRenderer.invoke('audio-processor-cleanup-chunked-upload', sessionId),
     
     // 進捗通知の受信
     onProgress: (callback: (progress: string) => void) => {
@@ -46,4 +74,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 }); 
 
-console.log('🔧 contextBridge.exposeInMainWorld が完了しました'); 
+preloadLog('🔧 contextBridge.exposeInMainWorld が完了しました'); 

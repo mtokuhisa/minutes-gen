@@ -8,6 +8,7 @@ const electron_1 = require("electron");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const axios_1 = __importDefault(require("axios"));
+const safeLogger_1 = require("./safeLogger");
 // 大容量ファイルのストリーム処理用ハンドラー
 const setupFileHandler = () => {
     // 大容量ファイルの音声転写処理
@@ -50,7 +51,7 @@ const setupFileHandler = () => {
             return response.data;
         }
         catch (error) {
-            console.error('大容量ファイル処理エラー:', error);
+            (0, safeLogger_1.safeError)('大容量ファイル処理エラー:', error);
             throw error;
         }
     });
@@ -69,7 +70,7 @@ const setupFileHandler = () => {
             };
         }
         catch (error) {
-            console.error('ファイル情報取得エラー:', error);
+            (0, safeLogger_1.safeError)('ファイル情報取得エラー:', error);
             throw error;
         }
     });
@@ -83,7 +84,7 @@ const setupFileHandler = () => {
             return false;
         }
         catch (error) {
-            console.error('一時ファイル削除エラー:', error);
+            (0, safeLogger_1.safeError)('一時ファイル削除エラー:', error);
             return false;
         }
     });

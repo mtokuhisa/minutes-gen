@@ -588,6 +588,11 @@ ${results.actionItems.map(ai => `• ${ai.task} (担当: ${ai.assignee})`).join(
 
   return (
     <Box>
+      {/* 🔥 デバッグ表示: 現在のコードが正しくロードされているか確認 */}
+      <Alert severity="success" sx={{ mb: 2 }}>
+        🎤 音声合成機能は完全に有効です！（{new Date().toLocaleTimeString()}）
+      </Alert>
+      
       {/* ヘッダー */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
         <Mic color="primary" sx={{ fontSize: 28 }} />

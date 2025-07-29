@@ -140,7 +140,7 @@ const initializeMinutesGen = () => {
               </button>
             </div>
             <small style="color: #888;">
-              エラー: ${error instanceof Error ? error.message : 'Unknown error'}
+              エラー: ${error?.message || 'Unknown error'}
             </small>
           </div>
         </div>
@@ -149,7 +149,7 @@ const initializeMinutesGen = () => {
 
     // エラー情報をグローバルに保存
     (window as any).__MINUTES_GEN_ERROR__ = {
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: error?.message || 'Unknown error',
       timestamp: new Date().toISOString(),
       userAgent: navigator.userAgent
     };
